@@ -15,3 +15,5 @@ __pycache__/
 
 # Release archive (created by .___PUSH___.cmd)
 whisper.cpp-data.zip
+.___PUSH___.cmd
+whisper-cpp-standalone-win.zip
