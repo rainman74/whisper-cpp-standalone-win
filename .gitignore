@@ -17,3 +17,4 @@ __pycache__/
 whisper-cpp-data.zip
 .___PUSH___.cmd
 whisper-cpp-standalone-win.zip
+whisper.cpp_*.zip
