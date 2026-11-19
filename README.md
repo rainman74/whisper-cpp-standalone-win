@@ -123,3 +123,4 @@ whisper.cmd Englisch1.txt                            → Englisch1.DE.txt
 
 - `models\download-ggml-model.cmd <model> [models_path]` — downloads a single GGML Whisper model (targeted; used by menu `[6]`). Model names: `tiny`, `base`, `small`, `medium`, `large-v1`, `large-v2`, `large-v3`, `large-v3-turbo` plus quantized variants (`small-q5_1`, `large-v2-q5_0`, ...). Existing files are skipped.
 - `models\download-vad-model.cmd <model> [models_path]` — downloads a **Silero VAD** model (`silero-v5.1.2` or `silero-v6.2.0`) as `ggml-silero-<model>.bin`. Used automatically by the wrapper for Silero VAD v6.2.0 (auto-download if missing).
+- `models\download-mdx-model.cmd` — downloads the **MDX Kim_Vocal_2** model from Hugging Face (`Kim_Vocal_2.onnx`, ~63.7 MiB) into `models\`. Used automatically by the wrapper for vocal isolation; existing files are skipped.
