@@ -32,7 +32,6 @@ Directory layout:
 | `models\download-ggml-model.cmd` | Download one GGML model |
 | `models\download-vad-model.cmd` | Download Silero VAD model |
 | `models\download-mdx-model.cmd` | Download MDX Kim_Vocal_2 model |
-| `models\download-vitisai-model.cmd` | Optional VitisAI models |
 
 ---
 
@@ -122,4 +121,3 @@ whisper.cmd Englisch1.txt                            → Englisch1.DE.txt
 
 - `models\download-ggml-model.cmd <model> [models_path]` — downloads a single GGML Whisper model (targeted; used by menu `[6]`). Model names: `tiny`, `base`, `small`, `medium`, `large-v1`, `large-v2`, `large-v3`, `large-v3-turbo` plus quantized variants (`small-q5_1`, `large-v2-q5_0`, ...). Existing files are skipped.
 - `models\download-vad-model.cmd <model> [models_path]` — downloads a **Silero VAD** model (`silero-v5.1.2` or `silero-v6.2.0`) as `ggml-silero-<model>.bin`. Used automatically by the wrapper for Silero VAD v6.2.0 (auto-download if missing).
-- `models\download-vitisai-model.cmd` — downloads **VitisAI** models for AMD/Xilinx NPU acceleration. This only works with a whisper.cpp build compiled with the VitisAI backend (`VITISAI = 1` in `system_info`); the included build reports `VITISAI = 0`, so it is not used. Note: the referenced VitisAI PowerShell helper is currently not present in `models\`.

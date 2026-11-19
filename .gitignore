@@ -1,7 +1,7 @@
 # Test files
 test*.*
 
-# Runtime / downloaded content (packed separately as whisper.cpp-data.zip)
+# Runtime / downloaded content (packed separately as whisper-cpp-data.zip)
 data/
 models/*
 !models/download*.cmd
@@ -14,6 +14,6 @@ __pycache__/
 *.bak_*
 
 # Release archive (created by .___PUSH___.cmd)
-whisper.cpp-data.zip
+whisper-cpp-data.zip
 .___PUSH___.cmd
 whisper-cpp-standalone-win.zip
