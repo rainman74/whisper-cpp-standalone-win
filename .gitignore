@@ -1,0 +1,17 @@
+# Test files
+test*.*
+
+# Runtime / downloaded content (packed separately as whisper.cpp-data.zip)
+data/
+models/*
+!models/download*.cmd
+
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Timestamped backups
+*.bak_*
+
+# Release archive (created by .___PUSH___.cmd)
+whisper.cpp-data.zip
