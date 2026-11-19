@@ -99,12 +99,16 @@ def main():
 
     outs = []
     total = mixture.shape[1] - 2 * TRIM
-    for start in range(0, total, GEN):
+    steps = max(1, (total + GEN - 1) // GEN)
+    print("  MDX progress:   0%", flush=True)
+    for idx, start in enumerate(range(0, total, GEN), 1):
         chunk = mixture[:, start:start + CHUNK]
         if chunk.shape[1] < CHUNK:
             chunk = np.pad(chunk, ((0, 0), (0, CHUNK - chunk.shape[1])))
         pred = sess.run(None, {"input": stft(chunk)})[0]
         outs.append(istft(pred, CHUNK)[:, TRIM:CHUNK - TRIM])
+        pct = min(100, int(round(idx * 100 / steps)))
+        print(f"  MDX progress: {pct:3d}%", flush=True)
     vocals = np.concatenate(outs, axis=1)[:, :mix.shape[1]] * peak
     write_wav(dst, vocals)
 

@@ -3,8 +3,6 @@ import os
 import re
 import subprocess
 import sys
-import threading
-import time
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 
@@ -71,26 +69,6 @@ def run_whisper(args_file, stdout_log):
 
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
 
-    ticker_stop = threading.Event()
-    progress_seen = threading.Event()
-    ticker_state = {"used": False}
-    out_lock = threading.Lock()
-    started = time.monotonic()
-
-    def ticker():
-        while not ticker_stop.wait(0.25):
-            if progress_seen.is_set():
-                continue
-            with out_lock:
-                try:
-                    sys.stdout.write(f"\r  Whisper: {time.monotonic() - started:4.1f}s ...")
-                    sys.stdout.flush()
-                    ticker_state["used"] = True
-                except Exception:
-                    return
-
-    ticker_thread = threading.Thread(target=ticker, daemon=True)
-    ticker_thread.start()
     other = []
 
     with open(stdout_log, "wb") as out:
@@ -106,22 +84,10 @@ def run_whisper(args_file, stdout_log):
             m = re.search(r"progress\s*=\s*(\d+)%", line)
             if m:
                 pct = int(m.group(1))
-                progress_seen.set()
-                with out_lock:
-                    if ticker_state["used"]:
-                        sys.stdout.write("\r" + " " * 60 + "\r")
-                        sys.stdout.flush()
-                        ticker_state["used"] = False
-                    print(f"  Whisper progress: {pct:3d}%", flush=True)
+                print(f"  Whisper progress: {pct:3d}%", flush=True)
             elif line.strip():
                 other.append(line)
         proc.wait()
-    ticker_stop.set()
-    ticker_thread.join(timeout=1.0)
-    with out_lock:
-        if ticker_state["used"]:
-            sys.stdout.write("\r" + " " * 60 + "\r\n")
-            sys.stdout.flush()
 
     if proc.returncode != 0:
         for line in other:

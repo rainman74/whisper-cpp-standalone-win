@@ -1005,7 +1005,7 @@ echo [FAST-WHISPER] MDX vocal isolation
 echo.
 "%FFMPEG%" -y -v error -i "!psrc!" -vn -ar 44100 -ac 2 -c:a pcm_s16le "!pmdxin!"
 if errorlevel 1 goto PREPARE_MDX_FAIL
-python "mdx.py" "!pmdxin!" "!pmdxvoc!" >nul 2>>"!ERRLOG!"
+python "mdx.py" "!pmdxin!" "!pmdxvoc!" 2>>"!ERRLOG!"
 if errorlevel 1 goto PREPARE_MDX_FAIL
 if not exist "!pmdxvoc!" goto PREPARE_MDX_FAIL
 "%FFMPEG%" -y -v error -i "!pmdxvoc!" -ar 16000 -ac 1 -c:a pcm_s16le "!pdst!"
