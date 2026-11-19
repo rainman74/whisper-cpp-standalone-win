@@ -161,7 +161,7 @@ set "sx=0"
 set /a sx+=1
 if !sx! gtr !todo_count! goto AUTO_SPLIT_DONE
 set "sf=!todo[%sx%]!"
-for %%F in ("!sf!") do call :SPLIT_WORDS_ONE "%%~dpnF" "!AUDTMP!\a!sx!.wav"
+for %%F in ("!sf!") do call :SPLIT_WORDS_ONE "%%~dpnF" "!AUDTMP!\a!sx!.wav" display
 goto AUTO_SPLIT_LOOP
 :AUTO_SPLIT_DONE
 del /q "!AUDTMP!\*.wav" >nul 2>&1
@@ -293,12 +293,14 @@ if !wcount! gtr 0 (
 )
 if not defined whisper_done goto MODE_SRTCHECK_TRANSLATE
 
+set "WSMODE=display"
+if "!NEED_BOTH!"=="1" set "WSMODE=sentence"
 set "sx=0"
 :ENGINE_SPLIT_LOOP
 set /a sx+=1
 if !sx! gtr !wcount! goto ENGINE_SPLIT_DONE
 set "sf=!wfile[%sx%]!"
-for %%F in ("!sf!") do call :SPLIT_WORDS_ONE "%%~dpnF" "!AUDTMP!\a!sx!.wav"
+for %%F in ("!sf!") do call :SPLIT_WORDS_ONE "%%~dpnF" "!AUDTMP!\a!sx!.wav" "!WSMODE!"
 goto ENGINE_SPLIT_LOOP
 :ENGINE_SPLIT_DONE
 del /q "!AUDTMP!\*.wav" >nul 2>&1
@@ -339,6 +341,7 @@ if !job_count! gtr 0 (
     )
     set "did_work=1"
 )
+if "!NEED_BOTH!"=="1" call :SPLIT_PAIRS
 
 :MODE_SRTCHECK_CLEANUP
 set "ci=0"
@@ -923,7 +926,14 @@ if not exist "%~1.json" exit /b
 if not exist "%~1.srt" exit /b
 where python >nul 2>nul
 if errorlevel 1 exit /b
+if /i "%~3"=="sentence" goto SPLIT_WORDS_SENTENCE
 python "translate.py" --words-srt "%~1.json" "%~1.srt" "%~2" >nul 2>>"!ERRLOG!"
+goto SPLIT_WORDS_DONE
+
+:SPLIT_WORDS_SENTENCE
+python "translate.py" --sentence-srt "%~1.json" "%~1.srt" "%~2" >nul 2>>"!ERRLOG!"
+
+:SPLIT_WORDS_DONE
 if errorlevel 1 call :SPLIT_SRT_ONE "%~1"
 exit /b
 
@@ -965,6 +975,22 @@ where python >nul 2>nul
 if errorlevel 1 exit /b
 if not exist "!MDX_MODEL!" call :ENSURE_MDX_MODEL
 if exist "!MDX_MODEL!" set "MDX_ACTIVE=1"
+exit /b
+
+:SPLIT_PAIRS
+set "pz=0"
+:PAIR_LOOP
+set /a pz+=1
+if !pz! gtr !wcount! exit /b
+set "pf=!wfile[%pz%]!"
+for %%F in ("!pf!") do call :SPLIT_PAIR_ONE "%%~dpnF"
+goto PAIR_LOOP
+
+:SPLIT_PAIR_ONE
+if not exist "%~1.json" exit /b
+if not exist "%~1!OUT_SUFFIX!" exit /b
+if not exist "%~1!OTHER_SUFFIX!" exit /b
+python "translate.py" --pair-srt "%~1.json" "%~1!OUT_SUFFIX!" "%~1!OTHER_SUFFIX!" >nul 2>>"!ERRLOG!"
 exit /b
 
 :PREPARE_AUDIO

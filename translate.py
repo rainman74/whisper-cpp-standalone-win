@@ -681,6 +681,198 @@ def _trim_block_starts(blocks, audio_path):
     return blocks
 
 
+def _json_words(json_path):
+    with open(json_path, "r", encoding="utf-8-sig") as f:
+        data = json.load(f)
+    words = []
+    for seg in data.get("transcription", []):
+        raw = []
+        for tok in seg.get("tokens", []):
+            t = tok.get("text", "")
+            if not t or t.startswith("["):
+                continue
+            off = tok.get("offsets", {})
+            raw.append((t, int(off.get("from", 0)), int(off.get("to", off.get("from", 0)))))
+        if not raw:
+            continue
+        tmin = min(r[1] for r in raw)
+        tmax = max(r[2] for r in raw)
+        sfrom = int(seg.get("offsets", {}).get("from", tmin))
+        sto = int(seg.get("offsets", {}).get("to", tmax))
+        span = tmax - tmin
+        scale = (sto - sfrom) / span if span > 0 else 1.0
+        for t, s, e in raw:
+            start = sfrom + int(round((s - tmin) * scale))
+            end = sfrom + int(round((e - tmin) * scale))
+            start = max(sfrom, min(start, sto))
+            end = max(start, min(end, sto))
+            if t[:1].isspace():
+                words.append([t, start, end])
+            elif words:
+                words[-1][0] += t
+                words[-1][2] = max(words[-1][2], end)
+            else:
+                words.append([t, start, end])
+    return words
+
+
+def _parse_srt_blocks(path):
+    with open(path, "r", encoding="utf-8-sig", newline="") as f:
+        content = f.read()
+    content = content.replace("\r\n", "\n").replace("\r", "\n")
+    blocks = []
+    for part in re.split(r'\n\s*\n', content.strip()):
+        part = part.strip()
+        if not part:
+            continue
+        lines = part.split("\n")
+        if len(lines) < 2:
+            continue
+        m = re.search(r'(\d{2}:\d{2}:\d{2}[,.]\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}[,.]\d{3})', lines[1])
+        if not m:
+            continue
+        start = _srt_time_to_ms(m.group(1).replace(".", ","))
+        end = _srt_time_to_ms(m.group(2).replace(".", ","))
+        text = re.sub(r"\s+", " ", " ".join(lines[2:])).strip()
+        blocks.append((start, end, text))
+    return blocks
+
+
+def _write_srt_blocks(path, blocks, max_line=45):
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        for i, (start, end, text) in enumerate(blocks, 1):
+            body = "\r\n".join(_wrap_lines(text, max_line))
+            f.write(f"{i}\r\n{_ms_to_srt_time(start)} --> {_ms_to_srt_time(end)}\r\n{body}\r\n\r\n")
+
+
+
+_FUNCTION_WORDS = {
+    "der", "die", "das", "den", "dem", "des", "ein", "eine", "einer", "eines", "einem", "einen",
+    "zu", "zum", "zur", "mit", "von", "vom", "für", "auf", "in", "im", "am", "an", "bei", "aus",
+    "durch", "um", "über", "unter", "vor", "nach", "zwischen", "und", "oder", "aber", "dass",
+    "weil", "wenn", "als", "wie", "ist", "sind", "war", "waren", "hat", "habe", "haben", "wird",
+    "werden", "würde", "wurde",
+    "the", "a", "an", "of", "to", "in", "on", "at", "for", "with", "by", "from", "as", "that",
+    "and", "or", "but", "is", "are", "was", "were", "be", "been", "being", "has", "have", "had",
+    "will", "would", "can", "could", "should", "this", "these", "those", "it", "its", "we",
+    "you", "they", "he", "she", "i",
+}
+
+
+def _item_text(item):
+    return item if isinstance(item, str) else item[0].strip()
+
+
+def _slice_balanced(items, k, weight, avoid_after=None):
+    n = len(items)
+    if k <= 1 or n <= 1:
+        return [items]
+    k = min(k, n)
+    prefix = [0]
+    for item in items:
+        prefix.append(prefix[-1] + max(1, weight(item)))
+    total = prefix[-1]
+    cuts = []
+    for i in range(1, k):
+        target = total * i / k
+        lo = (cuts[-1] + 1) if cuts else 1
+        hi = n - (k - i)
+
+        def score(x):
+            s = abs(prefix[x] - target)
+            prev = _item_text(items[x - 1]).lower().strip(".,;:!?…\"'")
+            if avoid_after and prev in avoid_after:
+                s += 6
+            if _item_text(items[x - 1]).rstrip()[-1:] in ".,;:!?":
+                s -= 2
+            return s
+
+        j = min(range(lo, hi + 1), key=score)
+        cuts.append(j)
+    result = []
+    prev = 0
+    for c in cuts + [n]:
+        result.append(items[prev:c])
+        prev = c
+    return result
+
+
+def split_pair_srt(json_path, src_srt, dst_srt, max_line=45):
+    """Translate-size sentence blocks -> paired display blocks (max 2 lines, same timestamps)."""
+    words = _json_words(json_path)
+    src_blocks = _parse_srt_blocks(src_srt)
+    dst_blocks = _parse_srt_blocks(dst_srt)
+    if len(src_blocks) != len(dst_blocks):
+        raise ValueError(f"block count mismatch: {len(src_blocks)} != {len(dst_blocks)}")
+
+    wi = 0
+    out_src = []
+    out_dst = []
+    for (s0, s1, st), (d0, d1, dt) in zip(src_blocks, dst_blocks):
+        sw = []
+        while wi < len(words) and words[wi][2] <= s1 + 50:
+            sw.append(words[wi])
+            wi += 1
+        if not sw:
+            out_src.append((s0, s1, st))
+            out_dst.append((s0, s1, dt))
+            continue
+
+        ttext = re.sub(r"\s+", " ", dt).strip()
+        tw = ttext.split()
+        if not tw:
+            raise ValueError("empty translation block")
+
+        best = None
+        max_n = min(len(sw), len(tw), 10)
+        for n in range(1, max_n + 1):
+            sc = _slice_balanced(sw, n, lambda w: max(1, len(w[0].strip())), None)
+            tc = _slice_balanced(tw, n, lambda w: len(w) + 1, _FUNCTION_WORDS)
+            if len(tc) != len(sc):
+                continue
+            stexts = ["".join(w[0] for w in c).strip() for c in sc]
+            ttexts = [" ".join(c) for c in tc]
+            if any(not x for x in stexts) or any(not x for x in ttexts):
+                continue
+            if all(len(_wrap_lines(x, max_line)) <= 2 for x in stexts) and \
+               all(len(_wrap_lines(x, max_line)) <= 2 for x in ttexts):
+                best = (sc, stexts, ttexts)
+                break
+
+        if best is None:
+            n = max(1, max_n)
+            sc = _slice_balanced(sw, n, lambda w: max(1, len(w[0].strip())), None)
+            tc = _slice_balanced(tw, n, lambda w: len(w) + 1, _FUNCTION_WORDS)
+            stexts = ["".join(w[0] for w in c).strip() for c in sc]
+            ttexts = [" ".join(c) for c in tc]
+            best = (sc, stexts, ttexts)
+
+        sc, stexts, ttexts = best
+        starts = []
+        ends = []
+        for i, c in enumerate(sc):
+            a = s0 if i == 0 else c[0][1]
+            b = s1 if i == len(sc) - 1 else c[-1][2]
+            a = max(s0, min(a, s1))
+            b = max(a, min(b, s1))
+            if i > 0 and a < ends[-1]:
+                a = ends[-1]
+            starts.append(a)
+            ends.append(max(a, b))
+
+        for i in range(len(sc)):
+            a = starts[i]
+            b = ends[i]
+            if b <= a:
+                b = a + 100
+            out_src.append((a, b, stexts[i]))
+            out_dst.append((a, b, ttexts[i]))
+
+    _write_srt_blocks(src_srt, out_src, max_line)
+    _write_srt_blocks(dst_srt, out_dst, max_line)
+    return len(out_src)
+
+
 def split_srt_from_words(json_path, srt_path, audio_path=None, max_chars=60, max_line=45):
     """Build display subtitle blocks from whisper-cli full JSON token timestamps."""
     with open(json_path, "r", encoding="utf-8-sig") as f:
@@ -1206,6 +1398,13 @@ def process_txt_batch(job_file, ctx=3, target="de"):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) >= 4 and sys.argv[1] == "--sentence-srt":
+        audio = sys.argv[4] if len(sys.argv) >= 5 else None
+        split_srt_from_words(sys.argv[2], sys.argv[3], audio, max_chars=240, max_line=1000)
+        sys.exit(0)
+    if len(sys.argv) >= 5 and sys.argv[1] == "--pair-srt":
+        split_pair_srt(sys.argv[2], sys.argv[3], sys.argv[4])
+        sys.exit(0)
     if len(sys.argv) >= 4 and sys.argv[1] == "--words-srt":
         audio = sys.argv[4] if len(sys.argv) >= 5 else None
         split_srt_from_words(sys.argv[2], sys.argv[3], audio)
