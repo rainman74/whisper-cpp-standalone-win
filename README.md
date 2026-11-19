@@ -1,4 +1,4 @@
-<img width="1608" height="628" alt="image" src="https://github.com/user-attachments/assets/5222a1f8-17f9-4f62-acf5-5dd06da9134e" />
+<img width="1604" height="626" alt="image" src="https://github.com/user-attachments/assets/db52960c-7b71-4134-a035-e3a140be4017" />
 
  # whisper.cpp — Unified Launcher
 
