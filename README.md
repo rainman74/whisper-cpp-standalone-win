@@ -34,6 +34,7 @@ Directory layout:
 | `models\download-ggml-model.cmd` | Download one GGML model |
 | `models\download-vad-model.cmd` | Download Silero VAD model |
 | `models\download-mdx-model.cmd` | Download MDX Kim_Vocal_2 model |
+| `.backup\` | Timestamped local backups (ignored by Git) |
 
 ---
 
@@ -56,8 +57,8 @@ Transcription is performed by one `whisper-cli.exe` call for all files (model lo
 
 **Subtitle line wrapping:** lines are wrapped inside one timestamp only. One line if it fits (about 45 characters), otherwise two balanced lines (about 50/50), and for very long blocks three lines with about 40/40/20 percent of the text in the first two/third line. This follows the common subtitle guidelines (max. two lines, break after punctuation / before conjunctions, no orphan words).
 
-**Subtitle block size:** whisper-cli runs with `-ojf` (full JSON with token timestamps). For transcription-only modes, `translate.py --words-srt` builds display blocks directly from the token timestamps. For translation modes, `translate.py --sentence-srt` first builds sentence-sized blocks, the translation is done on those blocks, and `translate.py --pair-srt` then splits source and target into matching display blocks (normally max two wrapped lines; a third line is allowed to keep a leading clause-ending word such as `können:` with its previous block) using the source word timestamps. VAD token timestamps are relative to the filtered speech timeline, so they are mapped back onto the original segment interval; block starts are additionally trimmed to the measured speech onset. Source and translated subtitles always share identical timestamps and block boundaries.
-The trailing punctuation of every translated block is aligned with its source block (a source comma stays a comma; a source sentence end stays a sentence end; continuing blocks never get a false full stop). The translation prompt already asks the model to preserve the source punctuation; `align_block_punctuation()` remains as a deterministic fallback for model slips. This post-processing uses `translate.py --words-srt` / `--sentence-srt` / `--pair-srt` and is skipped when Python is not available.
+**Subtitle block size:** whisper-cli runs with `-ojf` (full JSON with token timestamps). For transcription-only modes, `translate.py --words-srt` builds display blocks directly from the token timestamps. For translation modes, `translate.py --sentence-srt` first builds sentence-sized blocks. `process_srt_clauses()` then splits each sentence into clause blocks at source punctuation (word timestamps preserved), sends the whole sentence to the model with numbered clause markers, and writes both source and target as clause blocks with exactly the same timestamps. Every subtitle boundary is therefore a real clause boundary; no post-split by character count is used. Blocks are normally max two wrapped lines; a third line is allowed only for a genuinely long clause. VAD token timestamps are relative to the filtered speech timeline, so they are mapped back onto the original segment interval; block starts are additionally trimmed to the measured speech onset. Source and translated subtitles always share identical timestamps and block boundaries.
+The trailing punctuation of every translated clause is aligned with its source clause (a source comma stays a comma; a source sentence end stays a sentence end; continuing blocks never get a false full stop). The translation prompt already asks the model to preserve the source punctuation; `align_block_punctuation()` remains as a deterministic fallback for model slips. The translation pipeline uses `translate.py --words-srt` / `--sentence-srt` / `--clause-batch` and is skipped when Python is not available.
 
 ---
 

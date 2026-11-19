@@ -198,7 +198,7 @@ def _translate_minimal(text):
     except:
         return None
 
-def translate_text(text, context_blocks=None, ctx=3, force_variety=False, _allow_retry=True):
+def translate_text(text, context_blocks=None, ctx=3, force_variety=False, _allow_retry=True, markers=False, numbered=0):
     if not text.strip():
         return text
 
@@ -226,6 +226,22 @@ def translate_text(text, context_blocks=None, ctx=3, force_variety=False, _allow
         register_rule = "10. Use the informal 'du' address form throughout.\n"
     else:
         register_rule = ""
+    if markers:
+        marker_rule = (
+            f"11. The source is one sentence with exactly {markers} numbered clause tags <1>...</1>. "
+            f"Translate the whole sentence coherently, then return exactly {markers} tag pairs in the same order. "
+            "Each tag must contain only the translation of its clause. Never merge, split, reorder, omit, add or renumber tags. "
+            "Do not translate or explain the tags.\n"
+        )
+    elif numbered:
+        marker_rule = (
+            f"11. The source is one sentence split into exactly {numbered} numbered lines. "
+            f"Translate the whole sentence coherently and return exactly {numbered} lines, "
+            "each starting with the same number and a period, containing only the translation of that clause. "
+            "Never merge, split, reorder, omit, add or renumber lines.\n"
+        )
+    else:
+        marker_rule = ""
 
     # Only include context sections when context exists
     if context_blocks:
@@ -268,6 +284,7 @@ def translate_text(text, context_blocks=None, ctx=3, force_variety=False, _allow
         f"Rules:\n"
         f"{rules}"
         f"{register_rule}"
+        f"{marker_rule}"
         f"Output ONLY the {target_name} translation. NEVER add parenthesized hints, notes, analysis, checklists, reasoning, or meta-commentary. [/INST]"
     )
     payload = {
@@ -289,6 +306,11 @@ def translate_text(text, context_blocks=None, ctx=3, force_variety=False, _allow
         response = requests.post(f"{OLLAMA_API}/api/generate", json=payload, timeout=OLLAMA_TIMEOUT)
         result = response.json().get('response', '').strip()
         result = result.replace('"', '').replace('\u201e', '').replace('\u201c', '').strip()
+        if markers or numbered:
+            result = result.strip()
+            if not result:
+                raise TranslationError("model returned an empty translation")
+            return result
         # Strip all parenthesized content FIRST (subtitles are speech, never contain parentheses)
         if result:
             result = re.sub(r'\s*\([^)]*\)', '', result).strip()
@@ -523,7 +545,7 @@ def process_srt(input_file, output_file, ctx=3, quiet_finish=False):
     if not quiet_finish:
         print(f"\n\n[FAST-WHISPER] Translation finished in: {int(hours)}:{int(minutes):02}:{seconds:06.3f}\n")
 
-def process_batch(job_file, ctx=3):
+def process_batch(job_file, ctx=3, clause_mode=False):
     global TARGET_LANG
     start_timer = time.time()
     jobs = []
@@ -547,8 +569,17 @@ def process_batch(job_file, ctx=3):
         if not os.path.exists(src):
             print(f"[FAST-WHISPER] Source subtitle missing: {os.path.basename(src)}", flush=True)
             continue
+        json_path = None
+        if clause_mode:
+            base = re.sub(r"\.(EN|DE)\.srt$", "", src, flags=re.IGNORECASE)
+            candidate = base + ".json"
+            if os.path.exists(candidate):
+                json_path = candidate
         try:
-            process_srt(src, dst, ctx, quiet_finish=True)
+            if json_path:
+                process_srt_clauses(src, dst, json_path, ctx)
+            else:
+                process_srt(src, dst, ctx, quiet_finish=True)
         except TranslationError as e:
             print(f"[FAST-WHISPER] Translation aborted: {e}", flush=True)
             print(f"[FAST-WHISPER] Batch aborted - {idx - 1} of {total} file(s) completed.", flush=True)
@@ -848,20 +879,6 @@ def split_pair_srt(json_path, src_srt, dst_srt, max_line=45):
             best = (sc, stexts, ttexts)
 
         sc, stexts, ttexts = best
-        # A leading clause-ending word (e.g. "können:") belongs to the previous
-        # clause. Keep it there and allow one extra line instead of moving it
-        # into the next timestamp as a stranded fragment.
-        for ti in range(1, len(ttexts)):
-            twords = ttexts[ti].split()
-            if len(twords) < 2:
-                continue
-            first = twords[0].rstrip("\"'")
-            if not first or first[-1] not in ":;":
-                continue
-            merged = ttexts[ti - 1] + " " + twords[0]
-            if len(_wrap_lines(merged, max_line)) <= 3:
-                ttexts[ti - 1] = merged
-                ttexts[ti] = " ".join(twords[1:])
         starts = []
         ends = []
         for i, c in enumerate(sc):
@@ -885,6 +902,226 @@ def split_pair_srt(json_path, src_srt, dst_srt, max_line=45):
     _write_srt_blocks(src_srt, out_src, max_line)
     _write_srt_blocks(dst_srt, out_dst, max_line)
     return len(out_src)
+
+
+def _clause_units(words, s0, s1):
+    """Split source words at clause punctuation and long word boundaries."""
+    raw = []
+    cur = []
+
+    def nchars(items):
+        return sum(len(w[0].strip()) + 1 for w in items)
+
+    for w in words:
+        cur.append(w)
+        token = w[0].strip()
+        punct = token.endswith((",", ";", ":", "—", "–"))
+        if (punct and len(cur) >= 2 and nchars(cur) >= 12) or nchars(cur) >= 110:
+            raw.append(cur)
+            cur = []
+    if cur:
+        raw.append(cur)
+
+    merged = []
+    pending = []
+    for c in raw:
+        c = pending + c
+        pending = []
+        if len(c) < 2 or nchars(c) < 12:
+            if merged:
+                merged[-1].extend(c)
+            else:
+                pending = c
+        else:
+            merged.append(c)
+    if pending:
+        if merged:
+            merged[-1].extend(pending)
+        else:
+            merged = [pending]
+
+    out = []
+    prev_end = s0
+    for i, c in enumerate(merged):
+        a = s0 if i == 0 else c[0][1]
+        b = s1 if i == len(merged) - 1 else c[-1][2]
+        a = max(s0, min(a, s1))
+        if i > 0 and a < prev_end:
+            a = min(prev_end, s1)
+        b = max(a, min(b, s1))
+        if b <= a:
+            b = min(s1, a + 200)
+        if b <= a:
+            b = a
+        prev_end = b
+        text = "".join(w[0] for w in c).strip()
+        if text:
+            out.append((a, b, text))
+    if not out:
+        text = " ".join(w[0].strip() for w in words).strip()
+        out = [(s0, s1, text)]
+    cleaned = []
+    for u in out:
+        if cleaned and (cleaned[-1][1] - cleaned[-1][0] < 400 or len(cleaned[-1][2]) < 15 or u[1] - u[0] < 400 or len(u[2]) < 15):
+            p = cleaned[-1]
+            cleaned[-1] = (p[0], max(p[1], u[1]), (p[2] + " " + u[2]).strip())
+        else:
+            cleaned.append(u)
+    return cleaned
+
+
+def _parse_marked_clauses(result, count):
+    pairs = re.findall(r'<(\d+)>(.*?)</\1>', result, re.DOTALL | re.IGNORECASE)
+    data = {}
+    for k, v in pairs:
+        try:
+            idx = int(k)
+        except ValueError:
+            continue
+        val = re.sub(r'\s+', ' ', v).strip()
+        if val:
+            data[idx] = val
+    if len(data) != count or any(i not in data for i in range(1, count + 1)):
+        return None
+    return [data[i] for i in range(1, count + 1)]
+
+
+
+def _parse_numbered_clauses(result, count):
+    data = {}
+    for line in result.replace("\r", "\n").split("\n"):
+        m = re.match(r'^\s*(\d+)\s*[.)\-:]\s*(.+?)\s*$', line)
+        if not m:
+            continue
+        try:
+            idx = int(m.group(1))
+        except ValueError:
+            continue
+        val = re.sub(r'\s+', ' ', m.group(2)).strip().strip("*_ ")
+        if val:
+            data[idx] = val
+    if len(data) != count or any(i not in data for i in range(1, count + 1)):
+        return None
+    return [data[i] for i in range(1, count + 1)]
+def _translate_marked_clauses(marked, clauses, context_blocks, ctx):
+    if len(clauses) == 1:
+        return [translate_text(clauses[0][2], context_blocks, ctx)]
+    last_error = None
+    numbered_input = "\n".join(f"{i+1}. {c[2]}" for i, c in enumerate(clauses))
+    for attempt in (0, 1):
+        try:
+            raw = translate_text(numbered_input, context_blocks, ctx,
+                                 force_variety=(attempt == 1), numbered=len(clauses))
+            parsed = _parse_numbered_clauses(raw, len(clauses))
+            if parsed:
+                return parsed
+        except TranslationError:
+            pass
+    for attempt in (0, 1):
+        try:
+            raw = translate_text(marked, context_blocks, ctx,
+                                 force_variety=(attempt == 1), markers=len(clauses))
+            parsed = _parse_marked_clauses(raw, len(clauses))
+            if parsed:
+                return parsed
+        except TranslationError as exc:
+            last_error = exc
+    # Last resort: translate each clause in the sentence context.
+    out = []
+    for _, _, src_text in clauses:
+        out.append(translate_text(src_text, context_blocks, ctx))
+    if not out:
+        raise TranslationError(f"could not translate marked clauses: {last_error}")
+    return out
+
+
+def process_srt_clauses(input_file, output_file, json_path, ctx=3):
+    """Translate sentence blocks with clause markers, then write clause-level SRTs."""
+    start_timer = time.time()
+    with open(input_file, 'r', encoding='utf-8') as f:
+        content = f.read()
+    parts = re.split(r'(\d+\n\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3})', content)
+    header = parts[0]
+    blocks = []
+    for i in range(1, len(parts), 2):
+        blocks.append({"timestamp": parts[i], "text": parts[i + 1].strip()})
+
+    words = _json_words(json_path)
+    plans = []
+    wi = 0
+    for block in blocks:
+        m = re.search(r'(\d{2}:\d{2}:\d{2},\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2},\d{3})', block["timestamp"])
+        if not m:
+            continue
+        s0 = _srt_time_to_ms(m.group(1))
+        s1 = _srt_time_to_ms(m.group(2))
+        sw = []
+        while wi < len(words) and words[wi][2] <= s1 + 50:
+            sw.append(words[wi])
+            wi += 1
+        clauses = _clause_units(sw, s0, s1) if sw else [(s0, s1, block["text"])]
+        plans.append((s0, s1, clauses))
+
+    translated_blocks = []
+    source_blocks = []
+    context_blocks = []
+    total = len(plans)
+    last_flush = 0
+    try:
+        for idx, (s0, s1, clauses) in enumerate(plans):
+            print(f"\r[FAST-WHISPER] {idx + 1} of {total} subtitles translated", end="", flush=True)
+            marked = " ".join(f"<{i+1}>{c[2]}</{i+1}>" for i, c in enumerate(clauses))
+            targets = _translate_marked_clauses(marked, clauses, context_blocks, ctx)
+            if len(targets) != len(clauses):
+                raise TranslationError("clause translation count mismatch")
+            for j, (a, b, src_text) in enumerate(clauses):
+                ts = f"{_ms_to_srt_time(a)} --> {_ms_to_srt_time(b)}"
+                tgt = align_block_punctuation(src_text, targets[j])
+                source_blocks.append((ts, src_text))
+                translated_blocks.append((ts, tgt))
+            src_sentence = " ".join(c[2] for c in clauses)
+            tgt_sentence = " ".join(targets)
+            context_blocks.append((src_sentence, tgt_sentence))
+            if len(translated_blocks) - last_flush >= FLUSH_EVERY:
+                write_srt(output_file, header, translated_blocks)
+                last_flush = len(translated_blocks)
+    except KeyboardInterrupt:
+        print(f"\n\n[FAST-WHISPER] Translation cancelled: {len(translated_blocks)} of {total} sentences translated.", flush=True)
+        if translated_blocks:
+            write_srt(output_file, header, translated_blocks)
+            print(f"[FAST-WHISPER] Partial translation saved to:\n[FAST-WHISPER] {output_file}", flush=True)
+        else:
+            print("[FAST-WHISPER] Nothing to save.", flush=True)
+        cleanup_wavs(input_file)
+        stop_ollama()
+        print()
+        sys.exit(0)
+    except TranslationError as e:
+        print(f"\n\n[FAST-WHISPER] Translation failed for {os.path.basename(input_file)}: {e}", flush=True)
+        if os.path.exists(output_file):
+            try:
+                os.remove(output_file)
+            except OSError:
+                pass
+        if translated_blocks:
+            base, ext = os.path.splitext(output_file)
+            partial = f"{base}.partial{ext}"
+            write_srt(partial, header, translated_blocks)
+            print(f"[FAST-WHISPER] Partial translation saved to:\n[FAST-WHISPER] {partial}", flush=True)
+        else:
+            print("[FAST-WHISPER] Nothing to save.", flush=True)
+        cleanup_wavs(input_file)
+        raise
+
+    write_srt(output_file, header, translated_blocks)
+    # Replace the sentence-level source SRT with the final clause-level blocks.
+    write_srt(input_file, header, source_blocks)
+    cleanup_wavs(input_file)
+    duration = time.time() - start_timer
+    hours, rem = divmod(duration, 3600)
+    minutes, seconds = divmod(rem, 60)
+    if total > 0:
+        print(f"\n[FAST-WHISPER] Clause translation finished in: {int(hours)}:{int(minutes):02}:{seconds:06.3f}", flush=True)
 
 
 def split_srt_from_words(json_path, srt_path, audio_path=None, max_chars=60, max_line=45):
@@ -1416,9 +1653,6 @@ if __name__ == "__main__":
         audio = sys.argv[4] if len(sys.argv) >= 5 else None
         split_srt_from_words(sys.argv[2], sys.argv[3], audio, max_chars=240, max_line=1000)
         sys.exit(0)
-    if len(sys.argv) >= 5 and sys.argv[1] == "--pair-srt":
-        split_pair_srt(sys.argv[2], sys.argv[3], sys.argv[4])
-        sys.exit(0)
     if len(sys.argv) >= 4 and sys.argv[1] == "--words-srt":
         audio = sys.argv[4] if len(sys.argv) >= 5 else None
         split_srt_from_words(sys.argv[2], sys.argv[3], audio)
@@ -1486,6 +1720,20 @@ if __name__ == "__main__":
             sys.exit(1)
         stop_ollama()
         sys.exit(0)
+    if len(sys.argv) >= 3 and sys.argv[1] == "--clause-batch":
+        ctx = int(sys.argv[3]) if len(sys.argv) >= 4 else 3
+        if len(sys.argv) >= 5:
+            MODEL = sys.argv[4]
+        setup_ollama()
+        try:
+            process_batch(sys.argv[2], ctx, clause_mode=True)
+        except TranslationError as e:
+            print("[FAST-WHISPER] Translation aborted - see error above.", flush=True)
+            stop_ollama()
+            sys.exit(1)
+        stop_ollama()
+        sys.exit(0)
+
     if len(sys.argv) >= 3:
         ctx = int(sys.argv[3]) if len(sys.argv) >= 4 else 3
         if len(sys.argv) >= 5:

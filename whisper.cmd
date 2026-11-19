@@ -333,7 +333,11 @@ if !job_count! gtr 0 (
     echo [FAST-WHISPER] Checking Ollama ...
     call :OLLAMA_SETUP
     if errorlevel 1 goto CLEANUP_EXIT
-    python "translate.py" --batch "!JOBFILE!" !CTX! "!MODEL!"
+    if "!NEED_BOTH!"=="1" (
+        python "translate.py" --clause-batch "!JOBFILE!" !CTX! "!MODEL!"
+    ) else (
+        python "translate.py" --batch "!JOBFILE!" !CTX! "!MODEL!"
+    )
     if "%errorlevel%"=="-1073741510" goto CANCELLED_BY_USER
     if errorlevel 1 (
         echo [FAST-WHISPER] Translation failed - exit code !errorlevel!
@@ -341,7 +345,6 @@ if !job_count! gtr 0 (
     )
     set "did_work=1"
 )
-if "!NEED_BOTH!"=="1" call :SPLIT_PAIRS
 
 :MODE_SRTCHECK_CLEANUP
 set "ci=0"
@@ -977,21 +980,6 @@ if not exist "!MDX_MODEL!" call :ENSURE_MDX_MODEL
 if exist "!MDX_MODEL!" set "MDX_ACTIVE=1"
 exit /b
 
-:SPLIT_PAIRS
-set "pz=0"
-:PAIR_LOOP
-set /a pz+=1
-if !pz! gtr !wcount! exit /b
-set "pf=!wfile[%pz%]!"
-for %%F in ("!pf!") do call :SPLIT_PAIR_ONE "%%~dpnF"
-goto PAIR_LOOP
-
-:SPLIT_PAIR_ONE
-if not exist "%~1.json" exit /b
-if not exist "%~1!OUT_SUFFIX!" exit /b
-if not exist "%~1!OTHER_SUFFIX!" exit /b
-python "translate.py" --pair-srt "%~1.json" "%~1!OUT_SUFFIX!" "%~1!OTHER_SUFFIX!" >nul 2>>"!ERRLOG!"
-exit /b
 
 :PREPARE_AUDIO
 set "psrc=%~1"

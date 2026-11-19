@@ -10,7 +10,8 @@ models/*
 __pycache__/
 *.py[cod]
 
-# Timestamped backups
+# Timestamped backups (always stored in .backup/)
+.backup/
 *.bak_*
 
 # Release archive (created by .___PUSH___.cmd)
