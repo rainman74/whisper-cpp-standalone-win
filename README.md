@@ -1,4 +1,6 @@
-﻿# whisper.cpp — Unified Launcher
+<img width="1608" height="628" alt="image" src="https://github.com/user-attachments/assets/5222a1f8-17f9-4f62-acf5-5dd06da9134e" />
+
+ # whisper.cpp — Unified Launcher
 
 `whisper.cmd` is a drag-and-drop Windows launcher for **whisper.cpp** (`data\whisper-cli.exe`) with optional **Ollama** subtitle/text translation. It replaces the previous faster-whisper-xxl based wrapper: diarization and vocal/background extraction were intentionally removed.
 
