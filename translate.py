@@ -848,6 +848,20 @@ def split_pair_srt(json_path, src_srt, dst_srt, max_line=45):
             best = (sc, stexts, ttexts)
 
         sc, stexts, ttexts = best
+        # A leading clause-ending word (e.g. "können:") belongs to the previous
+        # clause. Keep it there and allow one extra line instead of moving it
+        # into the next timestamp as a stranded fragment.
+        for ti in range(1, len(ttexts)):
+            twords = ttexts[ti].split()
+            if len(twords) < 2:
+                continue
+            first = twords[0].rstrip("\"'")
+            if not first or first[-1] not in ":;":
+                continue
+            merged = ttexts[ti - 1] + " " + twords[0]
+            if len(_wrap_lines(merged, max_line)) <= 3:
+                ttexts[ti - 1] = merged
+                ttexts[ti] = " ".join(twords[1:])
         starts = []
         ends = []
         for i, c in enumerate(sc):
