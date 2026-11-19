@@ -589,7 +589,8 @@ def process_batch(job_file, ctx=3, clause_mode=False):
             print(f"[FAST-WHISPER] Batch aborted - {idx - 1} of {total} file(s) completed.", flush=True)
             raise TranslationError(str(e)) from e
         if os.path.exists(dst):
-            print(f"\n\n[FAST-WHISPER] Translation created: {os.path.basename(dst)}", flush=True)
+            created_prefix = "\n" if clause_mode else "\n\n"
+            print(f"{created_prefix}[FAST-WHISPER] Translation created: {os.path.basename(dst)}", flush=True)
         else:
             print(f"\n\n[FAST-WHISPER] Translation failed - no output written: {os.path.basename(dst)}", flush=True)
     end_timer = time.time()
@@ -1121,7 +1122,8 @@ def process_srt_clauses(input_file, output_file, json_path, ctx=3):
     hours, rem = divmod(duration, 3600)
     minutes, seconds = divmod(rem, 60)
     if total > 0:
-        print(f"\n[FAST-WHISPER] Clause translation finished in: {int(hours)}:{int(minutes):02}:{seconds:06.3f}", flush=True)
+        print(flush=True)
+        print(f"[FAST-WHISPER] Clause translation finished in: {int(hours)}:{int(minutes):02}:{seconds:06.3f}", flush=True)
 
 
 def split_srt_from_words(json_path, srt_path, audio_path=None, max_chars=60, max_line=45):
