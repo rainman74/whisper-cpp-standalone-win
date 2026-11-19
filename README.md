@@ -52,7 +52,7 @@ Transcription is performed by one `whisper-cli.exe` call for all files (model lo
 
 **Voice activity detection:** `whisper-cli` runs with `--vad -vm models\ggml-silero-v6.2.0.bin` (Silero VAD v6.2.0). The VAD is applied to the WAV extracted by ffmpeg, so silence/music segments are skipped before decoding - this reduces phantom text ("hallucinations") on non-speech audio. If the VAD model is missing, it is downloaded automatically; if the download fails, transcription continues without VAD.
 
-**Progress:** `whisper-cli` supports `-pp/--print-progress` (percentages to stderr, default 5% steps). `helper.py run` starts whisper-cli, filters stderr down to the progress lines and updates a single console line in place (`\r`), so no transcript/timestamps or info lines are shown.
+**Progress:** `whisper-cli` supports `-pp/--print-progress` (percentages to stderr, default 5% steps). `helper.py run` starts whisper-cli, filters stderr down to the progress lines and shows each reported percentage on its own line. While whisper-cli is running, a live elapsed-time status (`Whisper: 3.8s ...`) is updated every 250 ms. This matters because with `--vad` and MDX audio whisper-cli may only report the final `100%`; the elapsed ticker still shows that transcription is active.
 
 **Subtitle line wrapping:** lines are wrapped inside one timestamp only. One line if it fits (about 45 characters), otherwise two balanced lines (about 50/50), and for very long blocks three lines with about 40/40/20 percent of the text in the first two/third line. This follows the common subtitle guidelines (max. two lines, break after punctuation / before conjunctions, no orphan words).
 
