@@ -100,7 +100,7 @@ def main():
     outs = []
     total = mixture.shape[1] - 2 * TRIM
     steps = max(1, (total + GEN - 1) // GEN)
-    print("  MDX progress:   0%", flush=True)
+    print("  MDX progress:   0%", end="", flush=True)
     for idx, start in enumerate(range(0, total, GEN), 1):
         chunk = mixture[:, start:start + CHUNK]
         if chunk.shape[1] < CHUNK:
