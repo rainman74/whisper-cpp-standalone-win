@@ -70,6 +70,8 @@ def run_whisper(args_file, stdout_log):
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
 
     other = []
+    first = True
+    cr_used = False
 
     with open(stdout_log, "wb") as out:
         proc = subprocess.Popen(
@@ -84,10 +86,17 @@ def run_whisper(args_file, stdout_log):
             m = re.search(r"progress\s*=\s*(\d+)%", line)
             if m:
                 pct = int(m.group(1))
-                print(f"  Whisper progress: {pct:3d}%", flush=True)
+                if first:
+                    print(f"  Whisper progress: {pct:3d}%", flush=True)
+                    first = False
+                else:
+                    print(f"\r  Whisper progress: {pct:3d}%", end="", flush=True)
+                    cr_used = True
             elif line.strip():
                 other.append(line)
         proc.wait()
+    if cr_used:
+        print(flush=True)
 
     if proc.returncode != 0:
         for line in other:

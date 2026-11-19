@@ -108,7 +108,8 @@ def main():
         pred = sess.run(None, {"input": stft(chunk)})[0]
         outs.append(istft(pred, CHUNK)[:, TRIM:CHUNK - TRIM])
         pct = min(100, int(round(idx * 100 / steps)))
-        print(f"  MDX progress: {pct:3d}%", flush=True)
+        print(f"\r  MDX progress: {pct:3d}%", end="", flush=True)
+    print(flush=True)
     vocals = np.concatenate(outs, axis=1)[:, :mix.shape[1]] * peak
     write_wav(dst, vocals)
 
@@ -117,5 +118,6 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as exc:
+        print(flush=True)
         print(f"MDX error: {exc}", file=sys.stderr)
         sys.exit(1)

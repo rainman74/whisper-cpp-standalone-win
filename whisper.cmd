@@ -1002,7 +1002,6 @@ if not defined MDX_ACTIVE goto PREPARE_RAW
 set "pmdxin=!AUDTMP!\m!pidx!_in.wav"
 set "pmdxvoc=!AUDTMP!\m!pidx!_voc.wav"
 echo [FAST-WHISPER] MDX vocal isolation
-echo.
 "%FFMPEG%" -y -v error -i "!psrc!" -vn -ar 44100 -ac 2 -c:a pcm_s16le "!pmdxin!"
 if errorlevel 1 goto PREPARE_MDX_FAIL
 python "mdx.py" "!pmdxin!" "!pmdxvoc!" 2>>"!ERRLOG!"
@@ -1107,6 +1106,7 @@ if !AUDCOUNT!==0 (
     rd "!AUDTMP!" >nul 2>&1
     exit /b 1
 )
+echo.
 if defined VAD_READY (
     echo [FAST-WHISPER] Transcribing + VAD: !AUDCOUNT! files ...
 ) else (
