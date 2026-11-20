@@ -1123,6 +1123,7 @@ def process_srt_clauses(input_file, output_file, json_path, ctx=3):
     minutes, seconds = divmod(rem, 60)
     if total > 0:
         print(flush=True)
+        print(flush=True)
         print(f"[FAST-WHISPER] Clause translation finished in: {int(hours)}:{int(minutes):02}:{seconds:06.3f}", flush=True)
 
 
