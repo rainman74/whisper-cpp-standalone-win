@@ -760,12 +760,11 @@ def _json_words(json_path):
             for t, s, e in raw:
                 start = map_vad(s)
                 end = max(start, map_vad(e))
-                # Some tokens at a removed-music boundary span the gap in their
-                # raw offsets; snap them to the VAD segment containing their end.
+                # A token that spans a removed-music gap is unreliable; clamp
+                # its end to the VAD segment containing its start.
                 if end - start > 1500:
                     for os_ms, oe_ms, _vs_ms, _ve_ms in vad_map:
-                        if os_ms <= end <= oe_ms:
-                            start = max(start, os_ms)
+                        if os_ms <= start <= oe_ms:
                             end = min(end, oe_ms)
                             break
                 if t[:1].isspace():
