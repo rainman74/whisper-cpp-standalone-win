@@ -1049,6 +1049,8 @@ if "!USE_MDX!"=="1" if not defined MDX_ACTIVE echo [WHISPER] MDX not available -
 >>"!ARGSFILE!" echo -et
 >>"!ARGSFILE!" echo 2.4
 >>"!ARGSFILE!" echo -sns
+>>"!ARGSFILE!" echo -mc
+>>"!ARGSFILE!" echo 0
 call :ENSURE_VAD_MODEL
 if defined VAD_READY (
     >>"!ARGSFILE!" echo --vad
