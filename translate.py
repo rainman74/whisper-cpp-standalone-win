@@ -1223,24 +1223,6 @@ def split_srt_from_words(json_path, srt_path, audio_path=None, max_chars=60, max
         else:
             blocks.append(b)
 
-    # If a block starts long after the previous one, use the whisper segment
-    # offset as the start when that segment is short (removed-music boundary).
-    try:
-        with open(json_path, "r", encoding="utf-8-sig") as sf:
-            seg_data = json.load(sf)
-        seg_ranges = [(int(s.get("offsets", {}).get("from", 0)), int(s.get("offsets", {}).get("to", 0)))
-                      for s in seg_data.get("transcription", [])]
-    except (OSError, ValueError):
-        seg_ranges = []
-    prev_end = -1
-    for b in blocks:
-        bstart = b[0][1]
-        if seg_ranges and bstart - prev_end > 2000:
-            for sf, st in seg_ranges:
-                if prev_end <= sf <= bstart and 0 < st - sf <= 6000:
-                    b[0][1] = sf
-                    break
-        prev_end = b[-1][2]
 
     # Start the first block of each VAD segment at the detected speech onset.
     map_path = json_path + ".vadmap"
