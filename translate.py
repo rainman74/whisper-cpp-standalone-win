@@ -1211,6 +1211,22 @@ def split_srt_from_words(json_path, srt_path, audio_path=None, max_chars=60, max
         else:
             blocks.append(b)
 
+    # Start the first block of each VAD segment at the detected speech onset.
+    map_path = json_path + ".vadmap"
+    if os.path.exists(map_path):
+        try:
+            with open(map_path, "r", encoding="ascii") as mf:
+                vsegs = [(round(a * 1000), round(b * 1000)) for a, b, _c, _d in json.load(mf)]
+        except (OSError, ValueError):
+            vsegs = []
+        prev_end = -1
+        for b in blocks:
+            block_start = b[0][1]
+            for seg_start, seg_end in vsegs:
+                if seg_start <= block_start <= seg_end and prev_end < seg_start:
+                    b[0][1] = seg_start
+                    break
+            prev_end = b[-1][2]
     if audio_path and os.path.exists(audio_path):
         blocks = _trim_block_starts(blocks, audio_path)
 
