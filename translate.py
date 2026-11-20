@@ -758,15 +758,31 @@ def _json_words(json_path):
 
         if vad_map:
             for t, s, e in raw:
-                start = map_vad(s)
-                end = max(start, map_vad(e))
-                # A token that spans a removed-music gap is unreliable; clamp
-                # its end to the VAD segment containing its start.
-                if end - start > 1500:
-                    for os_ms, oe_ms, _vs_ms, _ve_ms in vad_map:
-                        if os_ms <= start <= oe_ms:
-                            end = min(end, oe_ms)
-                            break
+                raw_s = s / 1000.0
+                raw_e = e / 1000.0
+                chosen = None
+                for os_ms, oe_ms, vs_ms, ve_ms in vad_map:
+                    if vs_ms <= s <= ve_ms or vs_ms <= e <= ve_ms:
+                        chosen = (os_ms, oe_ms, vs_ms, ve_ms)
+                        break
+                if chosen is None:
+                    prev_seg = [m for m in vad_map if m[3] <= s]
+                    next_seg = [m for m in vad_map if m[2] >= e]
+                    if prev_seg:
+                        chosen = max(prev_seg, key=lambda m: m[3])
+                    elif next_seg:
+                        chosen = min(next_seg, key=lambda m: m[2])
+                if chosen:
+                    os_ms, oe_ms, vs_ms, ve_ms = chosen
+                    span_ms = max(1, ve_ms - vs_ms)
+                    scale = (oe_ms - os_ms) / span_ms
+                    start = os_ms + int(round((s - vs_ms) * scale))
+                    end = os_ms + int(round((e - vs_ms) * scale))
+                    start = max(os_ms, min(start, oe_ms))
+                    end = max(start, min(end, oe_ms))
+                else:
+                    start = map_vad(s)
+                    end = max(start, map_vad(e))
                 if t[:1].isspace():
                     words.append([t, start, end])
                 elif words:
@@ -793,6 +809,13 @@ def _json_words(json_path):
                     words[-1][2] = max(words[-1][2], end)
                 else:
                     words.append([t, start, end])
+    for w in words:
+        if w[2] - w[1] > 1500:
+            for os_ms, oe_ms, _vs_ms, _ve_ms in vad_map:
+                if os_ms <= w[2] <= oe_ms:
+                    w[1] = max(w[1], os_ms)
+                    w[2] = min(w[2], oe_ms)
+                    break
     return words
 
 
@@ -1223,6 +1246,27 @@ def split_srt_from_words(json_path, srt_path, audio_path=None, max_chars=60, max
         else:
             blocks.append(b)
 
+
+    # If a mapped block starts too early inside a short whisper segment,
+    # move only forward to that segment start. Never move a block backwards;
+    # a later VAD segment start is the more reliable speech onset.
+    try:
+        with open(json_path, "r", encoding="utf-8-sig") as sf:
+            seg_data = json.load(sf)
+        seg_ranges = [(int(s.get("offsets", {}).get("from", 0)), int(s.get("offsets", {}).get("to", 0)))
+                      for s in seg_data.get("transcription", [])]
+    except (OSError, ValueError):
+        seg_ranges = []
+    prev_end = -1
+    for b in blocks:
+        bstart = b[0][1]
+        bend = b[-1][2]
+        if seg_ranges and bstart - prev_end > 2000:
+            for sf, st in seg_ranges:
+                if prev_end < sf and bstart < sf < bend and 0 < st - sf <= 6000:
+                    b[0][1] = sf
+                    break
+        prev_end = b[-1][2]
 
     # Start the first block of each VAD segment at the detected speech onset.
     map_path = json_path + ".vadmap"
