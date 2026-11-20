@@ -3,6 +3,7 @@ import os
 import re
 import subprocess
 import sys
+import json
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 
@@ -67,6 +68,22 @@ def run_whisper(args_file, stdout_log):
         print(f"args file not found: {args_file}", file=sys.stderr)
         return 1
 
+    out_base = None
+    try:
+        with open(args_file, "r", encoding="utf-8") as af:
+            argv = [ln.rstrip("\r\n") for ln in af]
+        if "-of" in argv and argv.index("-of") + 1 < len(argv):
+            out_base = argv[argv.index("-of") + 1]
+    except OSError:
+        out_base = None
+    vad_map_path = (out_base + ".json.vadmap") if out_base else None
+    if vad_map_path and os.path.exists(vad_map_path):
+        try:
+            os.remove(vad_map_path)
+        except OSError:
+            pass
+    vad_segments = []
+
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
 
     other = []
@@ -82,6 +99,10 @@ def run_whisper(args_file, stdout_log):
         )
         for raw in iter(proc.stderr.readline, b""):
             line = raw.decode("utf-8", "replace").rstrip("\r\n")
+            if "vad_segment_info:" in line:
+                vm = re.search(r"orig_start:\s*([0-9.]+),\s*orig_end:\s*([0-9.]+),\s*vad_start:\s*([0-9.]+),\s*vad_end:\s*([0-9.]+)", line)
+                if vm:
+                    vad_segments.append([float(vm.group(1)), float(vm.group(2)), float(vm.group(3)), float(vm.group(4))])
             m = re.search(r"progress\s*=\s*(\d+)%", line)
             if m:
                 pct = int(m.group(1))
@@ -90,9 +111,18 @@ def run_whisper(args_file, stdout_log):
                     first = False
                 else:
                     print(f"\r  Whisper progress: {pct:3d}%", end="", flush=True)
-            elif line.strip():
+            elif line.strip() and any(k in line.lower() for k in ("error", "failed", "warning")):
                 other.append(line)
         proc.wait()
+    if vad_map_path:
+        try:
+            if vad_segments:
+                with open(vad_map_path, "w", encoding="ascii") as vf:
+                    json.dump(vad_segments, vf)
+            elif os.path.exists(vad_map_path):
+                os.remove(vad_map_path)
+        except OSError:
+            pass
     if not first:
         print(flush=True)
 

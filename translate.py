@@ -716,6 +716,34 @@ def _trim_block_starts(blocks, audio_path):
 def _json_words(json_path):
     with open(json_path, "r", encoding="utf-8-sig") as f:
         data = json.load(f)
+
+    vad_map = []
+    map_path = json_path + ".vadmap"
+    if os.path.exists(map_path):
+        try:
+            with open(map_path, "r", encoding="ascii") as mf:
+                for os_s, oe_s, vs_s, ve_s in json.load(mf):
+                    vad_map.append((round(os_s * 1000), round(oe_s * 1000),
+                                    round(vs_s * 1000), round(ve_s * 1000)))
+        except (OSError, ValueError):
+            vad_map = []
+
+    def map_vad(ms):
+        for os_ms, oe_ms, vs_ms, ve_ms in vad_map:
+            if vs_ms <= ms <= ve_ms and ve_ms > vs_ms:
+                return int(round(os_ms + (ms - vs_ms) * (oe_ms - os_ms) / (ve_ms - vs_ms)))
+        if not vad_map:
+            return ms
+        first = min(vad_map, key=lambda m: m[2])
+        last = max(vad_map, key=lambda m: m[3])
+        if ms < first[2]:
+            return max(0, first[0] - (first[2] - ms))
+        if ms > last[3]:
+            return last[1] + (ms - last[3])
+        # Between two VAD segments: use the nearest original boundary.
+        best = min(vad_map, key=lambda m: min(abs(ms - m[2]), abs(ms - m[3])))
+        return best[0] if abs(ms - best[2]) <= abs(ms - best[3]) else best[1]
+
     words = []
     for seg in data.get("transcription", []):
         raw = []
@@ -727,24 +755,37 @@ def _json_words(json_path):
             raw.append((t, int(off.get("from", 0)), int(off.get("to", off.get("from", 0)))))
         if not raw:
             continue
-        tmin = min(r[1] for r in raw)
-        tmax = max(r[2] for r in raw)
-        sfrom = int(seg.get("offsets", {}).get("from", tmin))
-        sto = int(seg.get("offsets", {}).get("to", tmax))
-        span = tmax - tmin
-        scale = (sto - sfrom) / span if span > 0 else 1.0
-        for t, s, e in raw:
-            start = sfrom + int(round((s - tmin) * scale))
-            end = sfrom + int(round((e - tmin) * scale))
-            start = max(sfrom, min(start, sto))
-            end = max(start, min(end, sto))
-            if t[:1].isspace():
-                words.append([t, start, end])
-            elif words:
-                words[-1][0] += t
-                words[-1][2] = max(words[-1][2], end)
-            else:
-                words.append([t, start, end])
+
+        if vad_map:
+            for t, s, e in raw:
+                start = map_vad(s)
+                end = max(start, map_vad(e))
+                if t[:1].isspace():
+                    words.append([t, start, end])
+                elif words:
+                    words[-1][0] += t
+                    words[-1][2] = max(words[-1][2], end)
+                else:
+                    words.append([t, start, end])
+        else:
+            tmin = min(r[1] for r in raw)
+            tmax = max(r[2] for r in raw)
+            sfrom = int(seg.get("offsets", {}).get("from", tmin))
+            sto = int(seg.get("offsets", {}).get("to", tmax))
+            span = tmax - tmin
+            scale = (sto - sfrom) / span if span > 0 else 1.0
+            for t, s, e in raw:
+                start = sfrom + int(round((s - tmin) * scale))
+                end = sfrom + int(round((e - tmin) * scale))
+                start = max(sfrom, min(start, sto))
+                end = max(start, min(end, sto))
+                if t[:1].isspace():
+                    words.append([t, start, end])
+                elif words:
+                    words[-1][0] += t
+                    words[-1][2] = max(words[-1][2], end)
+                else:
+                    words.append([t, start, end])
     return words
 
 
@@ -1129,43 +1170,7 @@ def process_srt_clauses(input_file, output_file, json_path, ctx=3):
 
 def split_srt_from_words(json_path, srt_path, audio_path=None, max_chars=60, max_line=45):
     """Build display subtitle blocks from whisper-cli full JSON token timestamps."""
-    with open(json_path, "r", encoding="utf-8-sig") as f:
-        data = json.load(f)
-
-    words = []  # [text_with_leading_space, start_ms, end_ms]
-    for seg in data.get("transcription", []):
-        raw = []
-        for tok in seg.get("tokens", []):
-            t = tok.get("text", "")
-            if not t or t.startswith("["):
-                continue
-            off = tok.get("offsets", {})
-            raw.append((t, int(off.get("from", 0)), int(off.get("to", off.get("from", 0)))))
-        if not raw:
-            continue
-
-        # token timestamps refer to the VAD-filtered (concatenated) audio;
-        # map them back to the original segment interval from the JSON.
-        tmin = min(r[1] for r in raw)
-        tmax = max(r[2] for r in raw)
-        sfrom = int(seg.get("offsets", {}).get("from", tmin))
-        sto = int(seg.get("offsets", {}).get("to", tmax))
-        span = tmax - tmin
-        scale = (sto - sfrom) / span if span > 0 else 1.0
-
-        for t, s, e in raw:
-            start = sfrom + int(round((s - tmin) * scale))
-            end = sfrom + int(round((e - tmin) * scale))
-            start = max(sfrom, min(start, sto))
-            end = max(start, min(end, sto))
-            if t[:1].isspace():
-                words.append([t, start, end])
-            elif words:
-                words[-1][0] += t
-                words[-1][2] = max(words[-1][2], end)
-            else:
-                words.append([t, start, end])
-
+    words = _json_words(json_path)
     def wtext(ws):
         return "".join(w[0] for w in ws).strip()
 

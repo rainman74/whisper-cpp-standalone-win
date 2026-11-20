@@ -359,6 +359,7 @@ for %%F in ("!cf!") do (
     set "cname=%%~nF"
 )
 if exist "!cpath!!cname!.json" del "!cpath!!cname!.json" >nul 2>&1
+if exist "!cpath!!cname!.json.vadmap" del "!cpath!!cname!.json.vadmap" >nul 2>&1
 for %%W in ("!cpath!!cname!*.wav") do if exist "%%W" del "%%W" >nul 2>&1
 goto MODE_SRTCHECK_CLEAN_LOOP
 
@@ -1048,7 +1049,6 @@ if "!USE_MDX!"=="1" if not defined MDX_ACTIVE echo [FAST-WHISPER] MDX not availa
 >>"!ARGSFILE!" echo -et
 >>"!ARGSFILE!" echo 2.4
 >>"!ARGSFILE!" echo -sns
->>"!ARGSFILE!" echo -np
 call :ENSURE_VAD_MODEL
 if defined VAD_READY (
     >>"!ARGSFILE!" echo --vad
