@@ -760,6 +760,14 @@ def _json_words(json_path):
             for t, s, e in raw:
                 start = map_vad(s)
                 end = max(start, map_vad(e))
+                # Some tokens at a removed-music boundary span the gap in their
+                # raw offsets; snap them to the VAD segment containing their end.
+                if end - start > 1500:
+                    for os_ms, oe_ms, _vs_ms, _ve_ms in vad_map:
+                        if os_ms <= end <= oe_ms:
+                            start = max(start, os_ms)
+                            end = min(end, oe_ms)
+                            break
                 if t[:1].isspace():
                     words.append([t, start, end])
                 elif words:
@@ -1176,7 +1184,11 @@ def split_srt_from_words(json_path, srt_path, audio_path=None, max_chars=60, max
 
     blocks = []
     cur = []
+    MAX_GAP_MS = 2000
     for w in words:
+        if cur and w[1] - cur[-1][2] > MAX_GAP_MS:
+            blocks.append(cur)
+            cur = []
         cur.append(w)
         text = wtext(cur)
         if not text:
@@ -1206,7 +1218,8 @@ def split_srt_from_words(json_path, srt_path, audio_path=None, max_chars=60, max
             merged.append(b)
     blocks = []
     for b in merged:
-        if blocks and len(wtext(blocks[-1])) < 15:
+        gap = b[0][1] - blocks[-1][-1][2] if blocks else 0
+        if blocks and len(wtext(blocks[-1])) < 15 and gap <= MAX_GAP_MS:
             blocks[-1] = blocks[-1] + b
         else:
             blocks.append(b)
