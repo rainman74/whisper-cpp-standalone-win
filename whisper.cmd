@@ -64,8 +64,8 @@ if "!IS_DIR!"=="0" call :COUNT_ARG_TYPES
 if !TXT_COUNT! gtr 0 (
     if !OTHER_COUNT! gtr 0 (
         echo.
-        echo [FAST-WHISPER] Mixed TXT and media/SRT files are not supported.
-        echo [FAST-WHISPER] Drop either TXT files or media files.
+        echo [WHISPER] Mixed TXT and media/SRT files are not supported.
+        echo [WHISPER] Drop either TXT files or media files.
         echo.
         goto END
     )
@@ -146,7 +146,7 @@ if defined WORKLIST_EMPTY goto END
 call :ENSURE_GGML_MODEL large-v2
 if errorlevel 1 goto WHISPER_MODEL_ABORT
 echo.
-echo [FAST-WHISPER] Starting transcription (language auto-detect) ...
+echo [WHISPER] Starting transcription (language auto-detect) ...
 echo.
 set /a WL_TOTAL=!todo_count!
 for /l %%i in (1,1,!WL_TOTAL!) do set "WLFILE[%%i]=!todo[%%i]!"
@@ -202,7 +202,7 @@ goto MODE_SRTCHECK
 if "!IS_DIR!"=="1" call :EXPAND_DIR
 if "!IS_DIR!"=="1" if !file_count!==0 (
     echo.
-    echo [FAST-WHISPER] No supported media files found in the dropped folder.
+    echo [WHISPER] No supported media files found in the dropped folder.
     echo.
     goto END
 )
@@ -232,12 +232,12 @@ if exist "!src_path!!src_name!!OTHER_SUFFIX!" set "exist_other=1"
 
 if "!exist_out!"=="1" if "!exist_other!"=="1" (
     echo.
-    echo [FAST-WHISPER] Subtitles already exist: !src_name!!OUT_SUFFIX! + !src_name!!OTHER_SUFFIX!
+    echo [WHISPER] Subtitles already exist: !src_name!!OUT_SUFFIX! + !src_name!!OTHER_SUFFIX!
     goto MODE_SRTCHECK_NEXT
 )
 if "!exist_out!"=="1" if "!NEED_BOTH!"=="0" (
     echo.
-    echo [FAST-WHISPER] Subtitle already exists: !src_name!!OUT_SUFFIX!
+    echo [WHISPER] Subtitle already exists: !src_name!!OUT_SUFFIX!
     goto MODE_SRTCHECK_NEXT
 )
 
@@ -272,7 +272,7 @@ if errorlevel 1 goto WHISPER_MODEL_ABORT
 set "whisper_done="
 if !wcount! gtr 0 (
     echo.
-    echo [FAST-WHISPER] Starting transcription in !LANG_NAME! - !wcount! files ...
+    echo [WHISPER] Starting transcription in !LANG_NAME! - !wcount! files ...
     echo.
     set /a WL_TOTAL=!wcount!
     for /l %%i in (1,1,!WL_TOTAL!) do set "WLFILE[%%i]=!wfile[%%i]!"
@@ -281,7 +281,7 @@ if !wcount! gtr 0 (
     call :RUN_WHISPER_CLI
     if "%errorlevel%"=="-1073741510" goto CANCELLED_BY_USER
     if errorlevel 1 (
-        echo [FAST-WHISPER] Whisper transcription failed - exit code !errorlevel!
+        echo [WHISPER] Whisper transcription failed - exit code !errorlevel!
         if exist "!ERRLOG!" echo.
         if exist "!ERRLOG!" findstr /v /i /c:"Matplotlib is building the font cache" "!ERRLOG!"
         if exist "!ERRLOG!" del "!ERRLOG!" >nul 2>&1
@@ -320,7 +320,7 @@ for %%F in ("!wf!") do (
 if exist "!wpath!!wname!.srt" (
     move /y "!wpath!!wname!.srt" "!wpath!!wname!!OUT_SUFFIX!" >nul
 ) else (
-    echo [FAST-WHISPER] No subtitle produced: !wname!.srt
+    echo [WHISPER] No subtitle produced: !wname!.srt
 )
 goto RENAME_WHISPER_LOOP
 
@@ -330,7 +330,7 @@ goto MODE_SRTCHECK_TRANSLATE
 :MODE_SRTCHECK_TRANSLATE
 if !job_count! gtr 0 (
     echo.
-    echo [FAST-WHISPER] Checking Ollama ...
+    echo [WHISPER] Checking Ollama ...
     call :OLLAMA_SETUP
     if errorlevel 1 goto CLEANUP_EXIT
     if "!NEED_BOTH!"=="1" (
@@ -340,7 +340,7 @@ if !job_count! gtr 0 (
     )
     if "%errorlevel%"=="-1073741510" goto CANCELLED_BY_USER
     if errorlevel 1 (
-        echo [FAST-WHISPER] Translation failed - exit code !errorlevel!
+        echo [WHISPER] Translation failed - exit code !errorlevel!
         goto MODE_SRTCHECK_CLEANUP
     )
     set "did_work=1"
@@ -367,7 +367,7 @@ goto MODE_SRTCHECK_CLEAN_LOOP
 if exist "!JOBFILE!" del "!JOBFILE!" >nul 2>&1
 if not defined did_work (
     echo.
-    echo [FAST-WHISPER] Nothing to do - all dropped files already have subtitles.
+    echo [WHISPER] Nothing to do - all dropped files already have subtitles.
     echo.
 )
 goto END
@@ -481,26 +481,26 @@ echo "!tsrc!"^|"!tdst!" >> "!TXTJOBS!"
 set /a TXT_JOBS+=1
 goto TXT_JOB_LOOP
 :TXT_SKIP_INPUT
-echo [FAST-WHISPER] Skipping !tname! - input already has .DE.txt or .EN.txt suffix
+echo [WHISPER] Skipping !tname! - input already has .DE.txt or .EN.txt suffix
 echo.
 goto TXT_JOB_LOOP
 :TXT_SKIP_EXISTS
-echo [FAST-WHISPER] Skipping !tname! - target !tbase!.!TXT_EXT!.txt already exists
+echo [WHISPER] Skipping !tname! - target !tbase!.!TXT_EXT!.txt already exists
 echo.
 goto TXT_JOB_LOOP
 :TXT_JOB_DONE
 if !TXT_JOBS!==0 (
-    echo [FAST-WHISPER] Nothing to do - no TXT files need translation.
+    echo [WHISPER] Nothing to do - no TXT files need translation.
     echo.
     goto CLEANUP_EXIT
 )
-echo [FAST-WHISPER] Checking Ollama ...
+echo [WHISPER] Checking Ollama ...
 call :OLLAMA_SETUP
 if errorlevel 1 goto CLEANUP_EXIT
 python "translate.py" --txt-batch "!TXTJOBS!" !CTX! !TXT_TARGET! "!MODEL!"
 if "%errorlevel%"=="-1073741510" goto CANCELLED_BY_USER
 if errorlevel 1 (
-    echo [FAST-WHISPER] Translation failed - exit code !errorlevel!
+    echo [WHISPER] Translation failed - exit code !errorlevel!
     if exist "!TXTJOBS!" del "!TXTJOBS!" >nul 2>&1
     goto CLEANUP_EXIT
 )
@@ -513,7 +513,7 @@ goto CLEANUP_EXIT
 :TRANSCRIBE_FAIL
 set "fail_code=!errorlevel!"
 echo.
-echo [FAST-WHISPER] Transcription failed - exit code !fail_code!
+echo [WHISPER] Transcription failed - exit code !fail_code!
 if exist "!ERRLOG!" echo.
 if exist "!ERRLOG!" findstr /v /i /c:"Matplotlib is building the font cache" "!ERRLOG!"
 if exist "!ERRLOG!" del "!ERRLOG!" >nul 2>&1
@@ -576,11 +576,11 @@ set "tgt=%~1"
 set "tname=!base!.!tgt!.srt"
 set "dst=!srt_path!!tname!"
 if exist "!dst!" (
-    echo [FAST-WHISPER] Subtitle already exists: !tname!
+    echo [WHISPER] Subtitle already exists: !tname!
     exit /b
 )
 if /i "!tgt!"=="EN" if exist "!srt_path!!base!.srt" (
-    echo [FAST-WHISPER] Subtitle already exists: !base!.srt - treated as English
+    echo [WHISPER] Subtitle already exists: !base!.srt - treated as English
     exit /b
 )
 set "dup="
@@ -592,7 +592,7 @@ if /i "!jds[%di%]!"=="!dst!" set "dup=1"
 goto SRT_DUP_LOOP
 :SRT_DUP_DONE
 if defined dup (
-    echo [FAST-WHISPER] Duplicate target skipped: !tname!
+    echo [WHISPER] Duplicate target skipped: !tname!
     exit /b
 )
 set /a jcount+=1
@@ -616,7 +616,7 @@ exit /b
 :SRT_SCAN_DONE
 if !job_count!==0 (
     echo.
-    echo [FAST-WHISPER] Nothing to do - all dropped files already have translations.
+    echo [WHISPER] Nothing to do - all dropped files already have translations.
     echo.
     if exist "!JOBFILE!" del "!JOBFILE!" >nul 2>&1
     goto END
@@ -626,12 +626,12 @@ if /i "!CTX!"=="C" goto CANCELLED_BY_USER
 if /i "!CTX!"=="R" goto MAIN_MENU
 if /i "!CTX!"=="E" goto CLEANUP_EXIT
 echo.
-echo [FAST-WHISPER] Checking Ollama ...
+echo [WHISPER] Checking Ollama ...
 call :OLLAMA_SETUP
 if errorlevel 1 goto CLEANUP_EXIT
 python "translate.py" --batch "!JOBFILE!" !CTX! "!MODEL!"
 if "%errorlevel%"=="-1073741510" goto CANCELLED_BY_USER
-if errorlevel 1 echo [FAST-WHISPER] Translation failed - exit code !errorlevel!
+if errorlevel 1 echo [WHISPER] Translation failed - exit code !errorlevel!
 if exist "!JOBFILE!" del "!JOBFILE!" >nul 2>&1
 goto END
 :: ============================================================
@@ -659,7 +659,7 @@ if exist "!bfp!!bfn!.DE.srt" set "have=!bfn!.DE.srt"
 if exist "!bfp!!bfn!.EN.srt" set "have=!bfn!.EN.srt"
 if not defined have if exist "!bfp!!bfn!.*.srt" set "have=!bfn!.*.srt"
 if defined have (
-    echo [FAST-WHISPER] Subtitle already exists: !have!
+    echo [WHISPER] Subtitle already exists: !have!
     set /a skip_count+=1
     goto WORKLIST_LOOP
 )
@@ -671,7 +671,7 @@ goto WORKLIST_LOOP
 :WORKLIST_READY
 if !todo_count!==0 (
     echo.
-    echo [FAST-WHISPER] Nothing to do - all dropped files already have a subtitle.
+    echo [WHISPER] Nothing to do - all dropped files already have a subtitle.
     echo.
     set "WORKLIST_EMPTY=1"
     exit /b
@@ -761,7 +761,7 @@ for %%F in ("!cf!") do (
 if exist "!cfp!!cfn!.srt" goto CHECK_OUTPUT_LOOP
 if exist "!cfp!!cfn!.DE.srt" goto CHECK_OUTPUT_LOOP
 if exist "!cfp!!cfn!.EN.srt" goto CHECK_OUTPUT_LOOP
-echo [FAST-WHISPER] No subtitle written: !cfn!
+echo [WHISPER] No subtitle written: !cfn!
 goto CHECK_OUTPUT_LOOP
 
 :: ============================================================
@@ -807,10 +807,10 @@ exit /b
 
 :PYTHON_MISSING
 echo.
-echo [FAST-WHISPER] No working Python 3.7+ found.
-echo [FAST-WHISPER] translate.py requires Python 3.7 or newer (3.10+ recommended).
-echo [FAST-WHISPER] Please install Python: https://www.python.org/downloads/
-echo [FAST-WHISPER] During setup enable "Add python.exe to PATH", then run again.
+echo [WHISPER] No working Python 3.7+ found.
+echo [WHISPER] translate.py requires Python 3.7 or newer (3.10+ recommended).
+echo [WHISPER] Please install Python: https://www.python.org/downloads/
+echo [WHISPER] During setup enable "Add python.exe to PATH", then run again.
 echo.
 exit /b 1
 
@@ -824,20 +824,20 @@ if errorlevel 1 exit /b 1
 
 where ollama >nul 2>nul
 if errorlevel 1 (
-    echo [FAST-WHISPER] Ollama not found. Downloading installer ...
+    echo [WHISPER] Ollama not found. Downloading installer ...
     curl -L https://ollama.com/download/OllamaSetup.exe -o "%temp%\OllamaSetup.exe"
     if errorlevel 1 (
-        echo [FAST-WHISPER] Ollama download failed - check your internet connection.
+        echo [WHISPER] Ollama download failed - check your internet connection.
         exit /b 1
     )
-    echo [FAST-WHISPER] Installing Ollama ...
+    echo [WHISPER] Installing Ollama ...
     start /wait "" "%temp%\OllamaSetup.exe" /silent
-    if errorlevel 1 echo [FAST-WHISPER] Ollama installer returned an error.
+    if errorlevel 1 echo [WHISPER] Ollama installer returned an error.
     set "PATH=!PATH!;!LOCALAPPDATA!\Programs\Ollama"
     timeout /t 3 >nul
     where ollama >nul 2>nul
     if errorlevel 1 (
-        echo [FAST-WHISPER] Ollama is not available - please install it manually.
+        echo [WHISPER] Ollama is not available - please install it manually.
         exit /b 1
     )
 )
@@ -852,10 +852,10 @@ set "OLLAMA_NUM_THREADS=8"
 
 python -c "import requests" >nul 2>nul
 if errorlevel 1 (
-    echo [FAST-WHISPER] Installing Python package "requests" ...
+    echo [WHISPER] Installing Python package "requests" ...
     python -m pip install requests
     if errorlevel 1 (
-        echo [FAST-WHISPER] Could not install "requests" - translation will not work.
+        echo [WHISPER] Could not install "requests" - translation will not work.
         exit /b 1
     )
 )
@@ -909,7 +909,7 @@ goto CLEANUP_EXIT_LOOP
 :: ============================================================
 :CANCELLED_BY_USER
 echo.
-echo [FAST-WHISPER] Cancelled by user.
+echo [WHISPER] Cancelled by user.
 if exist "!ERRLOG!" del "!ERRLOG!" >nul 2>&1
 goto END
 
@@ -958,17 +958,17 @@ exit /b
 :ENSURE_MDX_MODEL
 if exist "!MDX_MODEL!" exit /b 0
 if not exist "models\download-mdx-model.cmd" (
-    echo [FAST-WHISPER] MDX download script not found.
+    echo [WHISPER] MDX download script not found.
     exit /b 1
 )
 echo.
-echo [FAST-WHISPER] MDX model missing - downloading Kim_Vocal_2 ...
+echo [WHISPER] MDX model missing - downloading Kim_Vocal_2 ...
 pushd "models"
 call "download-mdx-model.cmd"
 set "MDXERR=!errorlevel!"
 popd
 if exist "!MDX_MODEL!" exit /b 0
-echo [FAST-WHISPER] MDX model download failed.
+echo [WHISPER] MDX model download failed.
 exit /b 1
 
 :MDX_SETUP
@@ -990,7 +990,7 @@ set "pname=%~4"
 if not defined MDX_ACTIVE goto PREPARE_RAW
 set "pmdxin=!AUDTMP!\m!pidx!_in.wav"
 set "pmdxvoc=!AUDTMP!\m!pidx!_voc.wav"
-echo [FAST-WHISPER] MDX vocal isolation
+echo [WHISPER] MDX vocal isolation
 "%FFMPEG%" -y -v error -i "!psrc!" -vn -ar 44100 -ac 2 -c:a pcm_s16le "!pmdxin!"
 if errorlevel 1 goto PREPARE_MDX_FAIL
 python "mdx.py" "!pmdxin!" "!pmdxvoc!" 2>>"!ERRLOG!"
@@ -1004,7 +1004,7 @@ exit /b !PRC!
 
 :PREPARE_MDX_FAIL
 echo.
-echo [FAST-WHISPER] MDX failed - using original audio: !pname!
+echo [WHISPER] MDX failed - using original audio: !pname!
 if exist "!pmdxin!" del "!pmdxin!" >nul 2>&1
 if exist "!pmdxvoc!" del "!pmdxvoc!" >nul 2>&1
 echo.
@@ -1019,18 +1019,18 @@ exit /b !errorlevel!
 :RUN_WHISPER_CLI
 if !WL_TOTAL!==0 exit /b 0
 if not exist "%EXE%" (
-    echo [FAST-WHISPER] whisper-cli.exe not found: %EXE%
+    echo [WHISPER] whisper-cli.exe not found: %EXE%
     exit /b 1
 )
 if not exist "!FFMPEG!" (
-    echo [FAST-WHISPER] ffmpeg not found: !FFMPEG!
+    echo [WHISPER] ffmpeg not found: !FFMPEG!
     exit /b 1
 )
 if not exist "!AUDTMP!" mkdir "!AUDTMP!" >nul 2>&1
 del /q "!AUDTMP!\*.wav" >nul 2>&1
 del "!ARGSFILE!" >nul 2>&1
 call :MDX_SETUP
-if "!USE_MDX!"=="1" if not defined MDX_ACTIVE echo [FAST-WHISPER] MDX not available - using raw audio.
+if "!USE_MDX!"=="1" if not defined MDX_ACTIVE echo [WHISPER] MDX not available - using raw audio.
 >>"!ARGSFILE!" echo -m
 >>"!ARGSFILE!" echo !TR_MODEL!
 >>"!ARGSFILE!" echo -l
@@ -1063,7 +1063,7 @@ set /a ai+=1
 if !ai! gtr !WL_TOTAL! goto WHISPER_AUDIO_RUN
 set "asrc=!WLFILE[%ai%]!"
 if not exist "!asrc!" (
-    echo [FAST-WHISPER] Input not found: !asrc!
+    echo [WHISPER] Input not found: !asrc!
     set /a AUDFAIL+=1
     goto WHISPER_AUDIO_LOOP
 )
@@ -1074,11 +1074,11 @@ for %%F in ("!asrc!") do (
     set "aname=%%~nF"
 )
 set "awav=!AUDTMP!\a!ai!.wav"
-echo [FAST-WHISPER] Extracting: !aname!
+echo [WHISPER] Extracting: !aname!
 echo.
 call :PREPARE_AUDIO "!asrc!" "!awav!" "!ai!" "!aname!"
 if errorlevel 1 (
-    echo [FAST-WHISPER] Audio extraction failed: !aname!
+    echo [WHISPER] Audio extraction failed: !aname!
     set /a AUDFAIL+=1
     goto WHISPER_AUDIO_LOOP
 )
@@ -1096,9 +1096,9 @@ if !AUDCOUNT!==0 (
 )
 echo.
 if defined VAD_READY (
-    echo [FAST-WHISPER] Transcribing + VAD: !AUDCOUNT! files ...
+    echo [WHISPER] Transcribing + VAD: !AUDCOUNT! files ...
 ) else (
-    echo [FAST-WHISPER] Transcribing: !AUDCOUNT! files ...
+    echo [WHISPER] Transcribing: !AUDCOUNT! files ...
 )
 where python >nul 2>nul
 if errorlevel 1 (
@@ -1121,32 +1121,32 @@ set "GMODELPATH="
 if /i "!GMODEL!"=="large-v2" set "GMODELPATH=%MODEL_LARGE%"
 if /i "!GMODEL!"=="tiny" set "GMODELPATH=%MODEL_TINY%"
 if not defined GMODELPATH (
-    echo [FAST-WHISPER] Unknown GGML model: !GMODEL!
+    echo [WHISPER] Unknown GGML model: !GMODEL!
     exit /b 1
 )
 if exist "!GMODELPATH!" exit /b 0
 echo.
-echo [FAST-WHISPER] Model not found: !GMODELPATH!
+echo [WHISPER] Model not found: !GMODELPATH!
 call :DOWNLOAD_GGML_MODEL !GMODEL!
 if exist "!GMODELPATH!" exit /b 0
-echo [FAST-WHISPER] Model still missing: !GMODELPATH!
+echo [WHISPER] Model still missing: !GMODELPATH!
 exit /b 1
 
 :DOWNLOAD_GGML_MODEL
 if not exist "models\download-ggml-model.cmd" (
-    echo [FAST-WHISPER] Download script not found: models\download-ggml-model.cmd
+    echo [WHISPER] Download script not found: models\download-ggml-model.cmd
     exit /b 1
 )
-echo [FAST-WHISPER] Downloading GGML model !GMODEL! ...
+echo [WHISPER] Downloading GGML model !GMODEL! ...
 pushd "models"
 call "download-ggml-model.cmd" !GMODEL!
 set "GMERR=!errorlevel!"
 popd
 if not exist "!GMODELPATH!" (
-    echo [FAST-WHISPER] Model download failed - exit code !GMERR!.
+    echo [WHISPER] Model download failed - exit code !GMERR!.
     exit /b 1
 )
-echo [FAST-WHISPER] Model downloaded: !GMODELPATH!
+echo [WHISPER] Model downloaded: !GMODELPATH!
 exit /b 0
 
 :ENSURE_VAD_MODEL
@@ -1156,26 +1156,26 @@ if exist "!VAD_MODEL!" (
     exit /b
 )
 if not exist "models\download-vad-model.cmd" (
-    echo [FAST-WHISPER] VAD download script not found - continuing without VAD.
+    echo [WHISPER] VAD download script not found - continuing without VAD.
     exit /b
 )
 echo.
-echo [FAST-WHISPER] VAD model missing - downloading Silero VAD v6.2.0 ...
+echo [WHISPER] VAD model missing - downloading Silero VAD v6.2.0 ...
 pushd "models"
 call "download-vad-model.cmd" silero-v6.2.0
 set "VERR=!errorlevel!"
 popd
 if exist "!VAD_MODEL!" (
     set "VAD_READY=1"
-    echo [FAST-WHISPER] VAD model ready.
+    echo [WHISPER] VAD model ready.
 ) else (
-    echo [FAST-WHISPER] VAD model download failed - continuing without VAD.
+    echo [WHISPER] VAD model download failed - continuing without VAD.
 )
 exit /b
 
 :MODE_DOWNLOAD_MODELS
 echo.
-echo [FAST-WHISPER] Checking required models ...
+echo [WHISPER] Checking required models ...
 set "GMFAIL=0"
 call :ENSURE_GGML_MODEL tiny
 if errorlevel 1 set "GMFAIL=1"
@@ -1187,9 +1187,9 @@ call :ENSURE_MDX_MODEL
 if errorlevel 1 set "GMFAIL=1"
 echo.
 if "!GMFAIL!"=="1" (
-    echo [FAST-WHISPER] Some models could not be downloaded - see messages above.
+    echo [WHISPER] Some models could not be downloaded - see messages above.
 ) else (
-    echo [FAST-WHISPER] All required models are available.
+    echo [WHISPER] All required models are available.
 )
 echo.
 pause
@@ -1197,7 +1197,7 @@ goto MAIN_MENU
 
 :WHISPER_MODEL_ABORT
 echo.
-echo [FAST-WHISPER] Whisper model is not available - aborting.
+echo [WHISPER] Whisper model is not available - aborting.
 echo.
 goto END
 :: ============================================================

@@ -38,7 +38,7 @@ def _server_running():
         return False
 
 def _start_server():
-    print("[FAST-WHISPER] Starting Ollama server ...", flush=True)
+    print("[WHISPER] Starting Ollama server ...", flush=True)
     print()
     kwargs = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
     if sys.platform == "win32":
@@ -48,7 +48,7 @@ def _start_server():
         time.sleep(1)
         if _server_running():
             return True
-    print("[FAST-WHISPER] Ollama server did not respond in time.")
+    print("[WHISPER] Ollama server did not respond in time.")
     return False
 
 def _model_present():
@@ -67,16 +67,16 @@ def _model_present():
 def _ensure_model():
     if _model_present():
         return True
-    print(f"[FAST-WHISPER] Model [{MODEL}] not found - downloading ...", flush=True)
+    print(f"[WHISPER] Model [{MODEL}] not found - downloading ...", flush=True)
     try:
         rc = subprocess.run(["ollama", "pull", MODEL]).returncode
     except Exception as e:
-        print(f"[FAST-WHISPER] Model download failed: {e}", flush=True)
+        print(f"[WHISPER] Model download failed: {e}", flush=True)
         rc = 1
     if rc != 0 or not _model_present():
-        print(f"[FAST-WHISPER] Model [{MODEL}] is not available - run: ollama pull {MODEL}", flush=True)
+        print(f"[WHISPER] Model [{MODEL}] is not available - run: ollama pull {MODEL}", flush=True)
         return False
-    print(f"[FAST-WHISPER] Model [{MODEL}] downloaded.", flush=True)
+    print(f"[WHISPER] Model [{MODEL}] downloaded.", flush=True)
     return True
 
 def _preload_model():
@@ -87,7 +87,7 @@ def _preload_model():
         }, timeout=10)
     except:
         pass
-    print(f"[FAST-WHISPER] Preloading [{MODEL}] ...", flush=True)
+    print(f"[WHISPER] Preloading [{MODEL}] ...", flush=True)
     print()
     try:
         requests.post(f"{OLLAMA_API}/api/generate", json={
@@ -115,7 +115,7 @@ def setup_ollama():
     # (set by whisper.cmd) are inherited by the server process.
     print(flush=True)
     if _server_running():
-        print("[FAST-WHISPER] Restarting Ollama to apply GPU memory settings ...", flush=True)
+        print("[WHISPER] Restarting Ollama to apply GPU memory settings ...", flush=True)
         stop_ollama()
         time.sleep(3)
     if not _start_server():
@@ -472,7 +472,7 @@ def process_srt(input_file, output_file, ctx=3, quiet_finish=False):
     last_flush = 0
     try:
         for i in range(total_blocks):
-            print(f"\r[FAST-WHISPER] {i+1} of {total_blocks} subtitles translated", end="", flush=True)
+            print(f"\r[WHISPER] {i+1} of {total_blocks} subtitles translated", end="", flush=True)
             if skip_next:
                 skip_next = False
                 continue
@@ -508,19 +508,19 @@ def process_srt(input_file, output_file, ctx=3, quiet_finish=False):
                 last_flush = len(translated_blocks)
 
     except KeyboardInterrupt:
-        print(f"\n\n[FAST-WHISPER] Translation cancelled: {len(translated_blocks)} of {total_blocks} subtitles translated.", flush=True)
+        print(f"\n\n[WHISPER] Translation cancelled: {len(translated_blocks)} of {total_blocks} subtitles translated.", flush=True)
         if translated_blocks:
             write_srt(output_file, header, translated_blocks)
-            print(f"[FAST-WHISPER] Partial translation saved to:\n[FAST-WHISPER] {output_file}", flush=True)
+            print(f"[WHISPER] Partial translation saved to:\n[WHISPER] {output_file}", flush=True)
         else:
-            print("[FAST-WHISPER] Nothing to save.", flush=True)
+            print("[WHISPER] Nothing to save.", flush=True)
         cleanup_wavs(input_file)
         stop_ollama()
         print()
         sys.exit(0)
 
     except TranslationError as e:
-        print(f"\n\n[FAST-WHISPER] Translation failed for {os.path.basename(input_file)}: {e}", flush=True)
+        print(f"\n\n[WHISPER] Translation failed for {os.path.basename(input_file)}: {e}", flush=True)
         if os.path.exists(output_file):
             try:
                 os.remove(output_file)
@@ -530,9 +530,9 @@ def process_srt(input_file, output_file, ctx=3, quiet_finish=False):
             base, ext = os.path.splitext(output_file)
             partial = f"{base}.partial{ext}"
             write_srt(partial, header, translated_blocks)
-            print(f"[FAST-WHISPER] Partial translation saved to:\n[FAST-WHISPER] {partial}", flush=True)
+            print(f"[WHISPER] Partial translation saved to:\n[WHISPER] {partial}", flush=True)
         else:
-            print("[FAST-WHISPER] Nothing to save.", flush=True)
+            print("[WHISPER] Nothing to save.", flush=True)
         cleanup_wavs(input_file)
         raise
 
@@ -543,7 +543,7 @@ def process_srt(input_file, output_file, ctx=3, quiet_finish=False):
     hours, rem = divmod(duration, 3600)
     minutes, seconds = divmod(rem, 60)
     if not quiet_finish:
-        print(f"\n\n[FAST-WHISPER] Translation finished in: {int(hours)}:{int(minutes):02}:{seconds:06.3f}\n")
+        print(f"\n\n[WHISPER] Translation finished in: {int(hours)}:{int(minutes):02}:{seconds:06.3f}\n")
 
 def process_batch(job_file, ctx=3, clause_mode=False):
     global TARGET_LANG
@@ -559,15 +559,15 @@ def process_batch(job_file, ctx=3, clause_mode=False):
                 jobs.append((parts[0], parts[1], parts[2].lower()))
     total = len(jobs)
     if total == 0:
-        print("[FAST-WHISPER] No translation jobs.", flush=True)
+        print("[WHISPER] No translation jobs.", flush=True)
         return
     for idx, (src, dst, target) in enumerate(jobs, 1):
         TARGET_LANG = target
         prefix = "" if idx == 1 else "\n"
-        print(f"{prefix}[FAST-WHISPER] Translating ({idx} of {total}): {os.path.basename(src)}", flush=True)
+        print(f"{prefix}[WHISPER] Translating ({idx} of {total}): {os.path.basename(src)}", flush=True)
         print(flush=True)
         if not os.path.exists(src):
-            print(f"[FAST-WHISPER] Source subtitle missing: {os.path.basename(src)}", flush=True)
+            print(f"[WHISPER] Source subtitle missing: {os.path.basename(src)}", flush=True)
             continue
         json_path = None
         if clause_mode:
@@ -581,23 +581,23 @@ def process_batch(job_file, ctx=3, clause_mode=False):
             else:
                 process_srt(src, dst, ctx, quiet_finish=True)
         except TranslationError as e:
-            print(f"[FAST-WHISPER] Translation aborted: {e}", flush=True)
-            print(f"[FAST-WHISPER] Batch aborted - {idx - 1} of {total} file(s) completed.", flush=True)
+            print(f"[WHISPER] Translation aborted: {e}", flush=True)
+            print(f"[WHISPER] Batch aborted - {idx - 1} of {total} file(s) completed.", flush=True)
             raise
         except Exception as e:
-            print(f"[FAST-WHISPER] Translation aborted: {e}", flush=True)
-            print(f"[FAST-WHISPER] Batch aborted - {idx - 1} of {total} file(s) completed.", flush=True)
+            print(f"[WHISPER] Translation aborted: {e}", flush=True)
+            print(f"[WHISPER] Batch aborted - {idx - 1} of {total} file(s) completed.", flush=True)
             raise TranslationError(str(e)) from e
         if os.path.exists(dst):
             created_prefix = "\n" if clause_mode else "\n\n"
-            print(f"{created_prefix}[FAST-WHISPER] Translation created: {os.path.basename(dst)}", flush=True)
+            print(f"{created_prefix}[WHISPER] Translation created: {os.path.basename(dst)}", flush=True)
         else:
-            print(f"\n\n[FAST-WHISPER] Translation failed - no output written: {os.path.basename(dst)}", flush=True)
+            print(f"\n\n[WHISPER] Translation failed - no output written: {os.path.basename(dst)}", flush=True)
     end_timer = time.time()
     duration = end_timer - start_timer
     hours, rem = divmod(duration, 3600)
     minutes, seconds = divmod(rem, 60)
-    print(f"\n[FAST-WHISPER] All translations finished in: {int(hours)}:{int(minutes):02}:{seconds:06.3f}\n", flush=True)
+    print(f"\n[WHISPER] All translations finished in: {int(hours)}:{int(minutes):02}:{seconds:06.3f}\n", flush=True)
 
 # ---------------------------------------------------------------------------
 #  SRT sentence splitter (in-place, proportional timestamps)
@@ -1119,7 +1119,7 @@ def process_srt_clauses(input_file, output_file, json_path, ctx=3):
     last_flush = 0
     try:
         for idx, (s0, s1, clauses) in enumerate(plans):
-            print(f"\r[FAST-WHISPER] {idx + 1} of {total} subtitles translated", end="", flush=True)
+            print(f"\r[WHISPER] {idx + 1} of {total} subtitles translated", end="", flush=True)
             marked = " ".join(f"<{i+1}>{c[2]}</{i+1}>" for i, c in enumerate(clauses))
             targets = _translate_marked_clauses(marked, clauses, context_blocks, ctx)
             if len(targets) != len(clauses):
@@ -1136,18 +1136,18 @@ def process_srt_clauses(input_file, output_file, json_path, ctx=3):
                 write_srt(output_file, header, translated_blocks)
                 last_flush = len(translated_blocks)
     except KeyboardInterrupt:
-        print(f"\n\n[FAST-WHISPER] Translation cancelled: {len(translated_blocks)} of {total} sentences translated.", flush=True)
+        print(f"\n\n[WHISPER] Translation cancelled: {len(translated_blocks)} of {total} sentences translated.", flush=True)
         if translated_blocks:
             write_srt(output_file, header, translated_blocks)
-            print(f"[FAST-WHISPER] Partial translation saved to:\n[FAST-WHISPER] {output_file}", flush=True)
+            print(f"[WHISPER] Partial translation saved to:\n[WHISPER] {output_file}", flush=True)
         else:
-            print("[FAST-WHISPER] Nothing to save.", flush=True)
+            print("[WHISPER] Nothing to save.", flush=True)
         cleanup_wavs(input_file)
         stop_ollama()
         print()
         sys.exit(0)
     except TranslationError as e:
-        print(f"\n\n[FAST-WHISPER] Translation failed for {os.path.basename(input_file)}: {e}", flush=True)
+        print(f"\n\n[WHISPER] Translation failed for {os.path.basename(input_file)}: {e}", flush=True)
         if os.path.exists(output_file):
             try:
                 os.remove(output_file)
@@ -1157,9 +1157,9 @@ def process_srt_clauses(input_file, output_file, json_path, ctx=3):
             base, ext = os.path.splitext(output_file)
             partial = f"{base}.partial{ext}"
             write_srt(partial, header, translated_blocks)
-            print(f"[FAST-WHISPER] Partial translation saved to:\n[FAST-WHISPER] {partial}", flush=True)
+            print(f"[WHISPER] Partial translation saved to:\n[WHISPER] {partial}", flush=True)
         else:
-            print("[FAST-WHISPER] Nothing to save.", flush=True)
+            print("[WHISPER] Nothing to save.", flush=True)
         cleanup_wavs(input_file)
         raise
 
@@ -1173,7 +1173,7 @@ def process_srt_clauses(input_file, output_file, json_path, ctx=3):
     if total > 0:
         print(flush=True)
         print(flush=True)
-        print(f"[FAST-WHISPER] Clause translation finished in: {int(hours)}:{int(minutes):02}:{seconds:06.3f}", flush=True)
+        print(f"[WHISPER] Clause translation finished in: {int(hours)}:{int(minutes):02}:{seconds:06.3f}", flush=True)
 
 
 def split_srt_from_words(json_path, srt_path, audio_path=None, max_chars=60, max_line=45):
@@ -1579,7 +1579,7 @@ def process_txt_file(src, dst, ctx=3, target="de"):
     chunks, para_indices = build_txt_chunks(content)
     total = len(chunks)
     if total == 0:
-        print(f"[FAST-WHISPER] No text found in {os.path.basename(src)} - skipped.", flush=True)
+        print(f"[WHISPER] No text found in {os.path.basename(src)} - skipped.", flush=True)
         return False
 
     translated = []
@@ -1590,7 +1590,7 @@ def process_txt_file(src, dst, ctx=3, target="de"):
 
     try:
         for i, chunk in enumerate(chunks):
-            print(f"\r[FAST-WHISPER] Translating {i + 1} of {total} chunks ...  ", end="", flush=True)
+            print(f"\r[WHISPER] Translating {i + 1} of {total} chunks ...  ", end="", flush=True)
             next_sentences = []
             for j in range(i + 1, len(chunks)):
                 next_sentences.extend(all_src_sentences[j])
@@ -1611,18 +1611,18 @@ def process_txt_file(src, dst, ctx=3, target="de"):
             prev_translated_sentences.extend(split_sentences_txt(translation))
 
     except KeyboardInterrupt:
-        print(f"\n\n[FAST-WHISPER] Translation cancelled: {len(translated)} of {total} chunks translated.", flush=True)
+        print(f"\n\n[WHISPER] Translation cancelled: {len(translated)} of {total} chunks translated.", flush=True)
         if translated:
             partial = _txt_partial_path(dst)
             _write_txt_output(partial, translated, para_indices)
-            print(f"[FAST-WHISPER] Partial translation saved to:\n[FAST-WHISPER] {partial}", flush=True)
+            print(f"[WHISPER] Partial translation saved to:\n[WHISPER] {partial}", flush=True)
         else:
-            print("[FAST-WHISPER] Nothing to save.", flush=True)
+            print("[WHISPER] Nothing to save.", flush=True)
         stop_ollama()
         sys.exit(0)
 
     except TranslationError as e:
-        print(f"\n\n[FAST-WHISPER] Translation failed for {os.path.basename(src)}: {e}", flush=True)
+        print(f"\n\n[WHISPER] Translation failed for {os.path.basename(src)}: {e}", flush=True)
         if os.path.exists(dst):
             try:
                 os.remove(dst)
@@ -1631,16 +1631,16 @@ def process_txt_file(src, dst, ctx=3, target="de"):
         if translated:
             partial = _txt_partial_path(dst)
             _write_txt_output(partial, translated, para_indices)
-            print(f"[FAST-WHISPER] Partial translation saved to:\n[FAST-WHISPER] {partial}", flush=True)
+            print(f"[WHISPER] Partial translation saved to:\n[WHISPER] {partial}", flush=True)
         else:
-            print("[FAST-WHISPER] Nothing to save.", flush=True)
+            print("[WHISPER] Nothing to save.", flush=True)
         raise
 
     _write_txt_output(dst, translated, para_indices)
     duration = time.time() - start_timer
     hours, rem = divmod(duration, 3600)
     minutes, seconds = divmod(rem, 60)
-    print(f"\n\n[FAST-WHISPER] Translation finished in: {int(hours)}:{int(minutes):02}:{seconds:06.3f}", flush=True)
+    print(f"\n\n[WHISPER] Translation finished in: {int(hours)}:{int(minutes):02}:{seconds:06.3f}", flush=True)
     return True
 
 
@@ -1657,32 +1657,32 @@ def process_txt_batch(job_file, ctx=3, target="de"):
                 jobs.append((parts[0], parts[1]))
     total = len(jobs)
     if total == 0:
-        print("[FAST-WHISPER] No TXT translation jobs.", flush=True)
+        print("[WHISPER] No TXT translation jobs.", flush=True)
         return
     for idx, (src, dst) in enumerate(jobs, 1):
         prefix = "" if idx == 1 else "\n"
-        print(f"{prefix}[FAST-WHISPER] Translating ({idx} of {total}): {os.path.basename(src)}", flush=True)
+        print(f"{prefix}[WHISPER] Translating ({idx} of {total}): {os.path.basename(src)}", flush=True)
         print(flush=True)
         if not os.path.exists(src):
-            print(f"[FAST-WHISPER] Source file missing: {os.path.basename(src)}", flush=True)
+            print(f"[WHISPER] Source file missing: {os.path.basename(src)}", flush=True)
             continue
         if os.path.exists(dst):
-            print(f"[FAST-WHISPER] Target already exists - skipped: {os.path.basename(dst)}", flush=True)
+            print(f"[WHISPER] Target already exists - skipped: {os.path.basename(dst)}", flush=True)
             continue
         try:
             created = process_txt_file(src, dst, ctx, target)
         except TranslationError as e:
-            print(f"[FAST-WHISPER] Translation aborted: {e}", flush=True)
-            print(f"[FAST-WHISPER] Batch aborted - {idx - 1} of {total} file(s) completed.", flush=True)
+            print(f"[WHISPER] Translation aborted: {e}", flush=True)
+            print(f"[WHISPER] Batch aborted - {idx - 1} of {total} file(s) completed.", flush=True)
             raise
         if created:
-            print(f"\n[FAST-WHISPER] Translation created: {os.path.basename(dst)}", flush=True)
+            print(f"\n[WHISPER] Translation created: {os.path.basename(dst)}", flush=True)
         else:
-            print(f"\n[FAST-WHISPER] Nothing written: {os.path.basename(dst)}", flush=True)
+            print(f"\n[WHISPER] Nothing written: {os.path.basename(dst)}", flush=True)
     duration = time.time() - start_timer
     hours, rem = divmod(duration, 3600)
     minutes, seconds = divmod(rem, 60)
-    print(f"\n[FAST-WHISPER] All TXT translations finished in: {int(hours)}:{int(minutes):02}:{seconds:06.3f}\n", flush=True)
+    print(f"\n[WHISPER] All TXT translations finished in: {int(hours)}:{int(minutes):02}:{seconds:06.3f}\n", flush=True)
 
 
 if __name__ == "__main__":
@@ -1709,16 +1709,16 @@ if __name__ == "__main__":
         if len(sys.argv) >= 7:
             MODEL = sys.argv[6]
         if target not in ("de", "en"):
-            print(f"[FAST-WHISPER] Unknown target '{target}'. Use 'de' or 'en'.", flush=True)
+            print(f"[WHISPER] Unknown target '{target}'. Use 'de' or 'en'.", flush=True)
             sys.exit(1)
         if not os.path.exists(src):
-            print(f"[FAST-WHISPER] Source file not found: {src}", flush=True)
+            print(f"[WHISPER] Source file not found: {src}", flush=True)
             sys.exit(1)
         setup_ollama()
         try:
             process_txt_file(src, dst, ctx, target)
         except TranslationError as e:
-            print("[FAST-WHISPER] Translation aborted - see error above.", flush=True)
+            print("[WHISPER] Translation aborted - see error above.", flush=True)
             stop_ollama()
             sys.exit(1)
         stop_ollama()
@@ -1730,16 +1730,16 @@ if __name__ == "__main__":
         if len(sys.argv) >= 6:
             MODEL = sys.argv[5]
         if target not in ("de", "en"):
-            print(f"[FAST-WHISPER] Unknown target '{target}'. Use 'de' or 'en'.", flush=True)
+            print(f"[WHISPER] Unknown target '{target}'. Use 'de' or 'en'.", flush=True)
             sys.exit(1)
         if not os.path.exists(job):
-            print(f"[FAST-WHISPER] Job file not found: {job}", flush=True)
+            print(f"[WHISPER] Job file not found: {job}", flush=True)
             sys.exit(1)
         setup_ollama()
         try:
             process_txt_batch(job, ctx, target)
         except TranslationError as e:
-            print("[FAST-WHISPER] Translation aborted - see error above.", flush=True)
+            print("[WHISPER] Translation aborted - see error above.", flush=True)
             stop_ollama()
             sys.exit(1)
         stop_ollama()
@@ -1752,7 +1752,7 @@ if __name__ == "__main__":
         try:
             process_batch(sys.argv[2], ctx)
         except TranslationError as e:
-            print("[FAST-WHISPER] Translation aborted - see error above.", flush=True)
+            print("[WHISPER] Translation aborted - see error above.", flush=True)
             stop_ollama()
             sys.exit(1)
         stop_ollama()
@@ -1765,7 +1765,7 @@ if __name__ == "__main__":
         try:
             process_batch(sys.argv[2], ctx, clause_mode=True)
         except TranslationError as e:
-            print("[FAST-WHISPER] Translation aborted - see error above.", flush=True)
+            print("[WHISPER] Translation aborted - see error above.", flush=True)
             stop_ollama()
             sys.exit(1)
         stop_ollama()
@@ -1781,7 +1781,7 @@ if __name__ == "__main__":
         try:
             process_srt(sys.argv[1], sys.argv[2], ctx)
         except TranslationError as e:
-            print("[FAST-WHISPER] Translation aborted - see error above.", flush=True)
+            print("[WHISPER] Translation aborted - see error above.", flush=True)
             stop_ollama()
             sys.exit(1)
         stop_ollama()
